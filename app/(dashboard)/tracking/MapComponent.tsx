@@ -33,17 +33,19 @@ const DEFAULT_CENTER: [number, number] = [28.6139, 77.2090]
 function createAmbulanceIcon(color: string) {
   return L.divIcon({
     html: `
-      <div style="
-        background:${color};
-        width:18px;height:18px;
-        border-radius:50%;
-        border:2.5px solid white;
-        box-shadow:0 2px 6px rgba(0,0,0,0.35);
-      "></div>`,
+      <div style="position:relative;text-align:center;width:36px">
+        <div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4))">🚑</div>
+        <div style="
+          position:absolute;bottom:-3px;left:50%;transform:translateX(-50%);
+          width:9px;height:9px;border-radius:50%;
+          background:${color};border:2px solid white;
+          box-shadow:0 1px 3px rgba(0,0,0,0.4)
+        "></div>
+      </div>`,
     className: '',
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-    popupAnchor: [0, -12],
+    iconSize: [36, 38],
+    iconAnchor: [18, 38],
+    popupAnchor: [0, -40],
   })
 }
 

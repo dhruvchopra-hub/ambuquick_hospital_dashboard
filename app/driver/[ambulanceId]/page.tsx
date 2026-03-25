@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { MapPin, Wifi, WifiOff, CheckCircle, AlertCircle } from 'lucide-react'
+import { MapPin, Wifi, WifiOff, CheckCircle, AlertCircle, BatteryCharging } from 'lucide-react'
 
 interface AmbulanceInfo {
   code: string
@@ -17,6 +17,7 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const watchIdRef = useRef<number | null>(null)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
 
   useEffect(() => {
     fetch(`/api/driver/ambulance?id=${params.ambulanceId}`)
@@ -29,6 +30,19 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
       .finally(() => setLoading(false))
   }, [params.ambulanceId])
 
+  // Re-acquire wake lock if page becomes visible again (e.g. screen unlock)
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (tracking && document.visibilityState === 'visible' && 'wakeLock' in navigator) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen')
+        } catch {}
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [tracking])
+
   const sendLocation = useCallback(async (lat: number, lng: number) => {
     try {
       await fetch('/api/driver/location', {
@@ -38,16 +52,24 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
       })
       setLastUpdate(new Date())
     } catch {
-      // silent — will retry on next GPS update
+      // will retry on next GPS update
     }
   }, [params.ambulanceId])
 
-  const startTracking = () => {
+  const startTracking = async () => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported on this device')
       return
     }
     setError('')
+
+    // Prevent screen from sleeping
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request('screen')
+      } catch {}
+    }
+
     setTracking(true)
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -68,14 +90,15 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
       navigator.geolocation.clearWatch(watchIdRef.current)
       watchIdRef.current = null
     }
+    wakeLockRef.current?.release()
+    wakeLockRef.current = null
     setTracking(false)
   }
 
   useEffect(() => {
     return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current)
-      }
+      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current)
+      wakeLockRef.current?.release()
     }
   }, [])
 
@@ -104,8 +127,8 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
 
       {/* Header */}
       <div className="text-center">
-        <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
-          <MapPin className="w-8 h-8 text-red-400" />
+        <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 text-4xl">
+          🚑
         </div>
         <h1 className="text-2xl font-bold">{ambulance.code}</h1>
         <p className="text-gray-400 mt-1">{ambulance.driver_name}</p>
@@ -120,6 +143,14 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
           : <><WifiOff className="w-4 h-4" /> Not Tracking</>
         }
       </div>
+
+      {/* Keep open warning — shown only while tracking */}
+      {tracking && (
+        <div className="flex items-start gap-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs px-4 py-3 rounded-xl w-full max-w-sm">
+          <BatteryCharging className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>Keep this page open while driving. You can lock your screen — do not close the app.</span>
+        </div>
+      )}
 
       {/* Coords card */}
       {coords && (
@@ -152,9 +183,7 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
       <button
         onClick={tracking ? stopTracking : startTracking}
         className={`w-full max-w-sm py-5 rounded-2xl text-lg font-bold transition-all active:scale-95 ${
-          tracking
-            ? 'bg-red-600 hover:bg-red-700'
-            : 'bg-green-600 hover:bg-green-700'
+          tracking ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
         }`}
       >
         {tracking ? 'Stop Tracking' : 'Start Tracking'}
@@ -168,7 +197,7 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
       )}
 
       <p className="text-gray-600 text-xs text-center max-w-xs">
-        Keep this page open while on a trip. The hospital dashboard updates in real time.
+        Hospital dashboard updates in real time. Screen will stay on while tracking.
       </p>
     </div>
   )

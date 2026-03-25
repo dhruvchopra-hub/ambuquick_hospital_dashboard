@@ -70,9 +70,20 @@ export default function TrackingPage() {
       })
       .subscribe()
 
+    // Polling fallback every 5 seconds
+    const poll = setInterval(async () => {
+      const [{ data: ambData }, { data: ridesData }] = await Promise.all([
+        supabase.from('ambulances').select('*'),
+        supabase.from('rides').select('*').in('status', ['dispatched', 'en_route']),
+      ])
+      if (ambData) setAmbulances(ambData as Ambulance[])
+      if (ridesData) setActiveRides(ridesData as Ride[])
+    }, 5000)
+
     return () => {
       supabase.removeChannel(ambChannel)
       supabase.removeChannel(ridesChannel)
+      clearInterval(poll)
     }
   }, [])
 
