@@ -4,14 +4,18 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2, ArrowRight } from 'lucide-react'
+
+const STATS = [
+  { value: '600+', label: 'Ambulances' },
+  { value: '15+', label: 'Hospital Partners' },
+  { value: '7,000+', label: 'Lives Saved' },
+]
 
 export default function LoginPage() {
   const router = useRouter()
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [hospitalName, setHospitalName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -19,10 +23,8 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-
     const supabase = createClient()
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-
     if (signInError) {
       setError(
         signInError.message === 'Invalid login credentials'
@@ -32,209 +34,143 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
-
     router.push('/')
     router.refresh()
-  }
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    const supabase = createClient()
-
-    // Step 1: Create the auth account
-    const { error: signUpError } = await supabase.auth.signUp({ email, password })
-    if (signUpError) {
-      setError(signUpError.message)
-      setLoading(false)
-      return
-    }
-
-    // Step 2: Sign in immediately (works when "Confirm email" is disabled in Supabase)
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (signInError) {
-      setError('Account created! Check your email to confirm it, then sign in.')
-      setMode('login')
-      setLoading(false)
-      return
-    }
-
-    // Step 3: Create the hospital + link the user via DB function
-    const { error: rpcError } = await supabase.rpc('create_hospital_for_user', {
-      hospital_name: hospitalName,
-      hospital_email: email,
-    })
-    if (rpcError) {
-      setError('Account created but hospital setup failed: ' + rpcError.message)
-      setLoading(false)
-      return
-    }
-
-    router.push('/')
-    router.refresh()
-  }
-
-  const switchMode = (next: 'login' | 'signup') => {
-    setMode(next)
-    setError('')
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg overflow-hidden">
-            <Image src="/logo.png" alt="AmbuQuick" width={64} height={64} className="object-contain" />
-          </div>
-          <h1 className="text-3xl font-bold text-ambu-red tracking-tight">AmbuQuick</h1>
-          <p className="text-gray-500 text-sm mt-1">Hospital Partner Dashboard</p>
-        </div>
-
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
-          {/* Mode Tabs */}
-          <div className="flex rounded-xl bg-gray-100 p-1 mb-6">
-            <button
-              type="button"
-              onClick={() => switchMode('login')}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                mode === 'login'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => switchMode('signup')}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                mode === 'signup'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Create Account
-            </button>
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Left — Red Panel */}
+      <div
+        className="lg:w-[45%] lg:fixed lg:inset-y-0 lg:left-0 flex flex-col justify-center px-8 py-12 lg:px-14"
+        style={{ backgroundColor: '#D91A2A' }}
+      >
+        <div className="max-w-sm">
+          {/* Logo */}
+          <div className="flex items-center gap-3 mb-14">
+            <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/20 flex items-center justify-center flex-shrink-0">
+              <Image src="/logo.png" alt="AmbuQuick" width={40} height={40} className="object-contain" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-lg leading-none">AmbuQuick</p>
+              <p className="text-red-200 text-xs mt-0.5">Emergency Medical Network</p>
+            </div>
           </div>
 
-          {mode === 'login' ? (
-            <>
-              <h2 className="text-xl font-semibold text-gray-900 mb-1">Welcome back</h2>
-              <p className="text-sm text-gray-500 mb-6">Sign in to your hospital account</p>
+          {/* Tagline */}
+          <h1 className="text-white text-4xl xl:text-5xl font-bold leading-tight mb-5">
+            18 minutes.<br />Every time.
+          </h1>
+          <p className="text-red-200 text-sm leading-relaxed mb-10">
+            India's most reliable ambulance dispatch network, purpose-built for hospital partners who demand speed and accountability.
+          </p>
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="admin@hospital.com"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ambu-red focus:border-transparent transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ambu-red focus:border-transparent transition"
-                  />
-                </div>
-
-                {error && (
-                  <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 text-red-700 rounded-xl p-3.5 text-sm">
-                    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-ambu-red hover:bg-ambu-red-dark text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
-                >
-                  {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Signing in…</> : 'Sign In'}
-                </button>
-              </form>
-
-              <div className="mt-6 pt-5 border-t border-gray-100">
-                <p className="text-xs text-gray-400 text-center">
-                  Demo credentials: <span className="font-medium text-gray-600">demo@ujala.com</span> / <span className="font-medium text-gray-600">demo123</span>
-                </p>
+          {/* Stat Pills */}
+          <div className="flex flex-wrap gap-3">
+            {STATS.map(s => (
+              <div
+                key={s.label}
+                className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/25 bg-white/10"
+              >
+                <span className="text-white font-bold text-sm">{s.value}</span>
+                <span className="text-red-200 text-xs">{s.label}</span>
               </div>
-            </>
-          ) : (
-            <>
-              <h2 className="text-xl font-semibold text-gray-900 mb-1">Create your account</h2>
-              <p className="text-sm text-gray-500 mb-6">Set up your hospital partner dashboard</p>
+            ))}
+          </div>
+        </div>
+      </div>
 
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Hospital Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={hospitalName}
-                    onChange={e => setHospitalName(e.target.value)}
-                    placeholder="e.g. City General Hospital"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ambu-red focus:border-transparent transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="admin@hospital.com"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ambu-red focus:border-transparent transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ambu-red focus:border-transparent transition"
-                  />
-                </div>
+      {/* Right — Login Form */}
+      <div className="flex-1 lg:ml-[45%] bg-white flex flex-col min-h-screen">
+        <div className="flex-1 flex items-center justify-center px-8 py-12 lg:px-14">
+          <div className="w-full max-w-sm">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold" style={{ color: '#0F0F0F' }}>Welcome back</h2>
+              <p className="text-sm mt-1.5" style={{ color: '#6B6560' }}>
+                Sign in to your hospital partner account
+              </p>
+            </div>
 
-                {error && (
-                  <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 text-red-700 rounded-xl p-3.5 text-sm">
-                    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span>{error}</span>
-                  </div>
-                )}
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#0F0F0F' }}>
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="admin@hospital.com"
+                  className="w-full px-4 py-3 rounded-xl text-sm border transition focus:outline-none focus:ring-2 focus:ring-ambu-red focus:border-transparent"
+                  style={{ borderColor: '#E5E2DC', color: '#0F0F0F' }}
+                />
+              </div>
 
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium" style={{ color: '#0F0F0F' }}>
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    className="text-xs transition hover:opacity-70"
+                    style={{ color: '#6B6560' }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 rounded-xl text-sm border transition focus:outline-none focus:ring-2 focus:ring-ambu-red focus:border-transparent"
+                  style={{ borderColor: '#E5E2DC', color: '#0F0F0F' }}
+                />
+              </div>
+
+              {error && (
+                <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 text-red-700 rounded-xl p-3.5 text-sm">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-ambu-red hover:bg-ambu-red-dark text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+              >
+                {loading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</>
+                  : <>Sign In <ArrowRight className="w-4 h-4" /></>
+                }
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm" style={{ color: '#6B6560' }}>
+                Not a partner yet?{' '}
                 <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-ambu-red hover:bg-ambu-red-dark text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+                  type="button"
+                  onClick={() => alert('Contact dhruvchopra@ambuquick.com to get access')}
+                  className="text-ambu-red font-semibold hover:underline"
                 >
-                  {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Creating account…</> : 'Create Account'}
+                  Request Access
                 </button>
-              </form>
-            </>
-          )}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          © 2025 AmbuQuick. Saving lives, one ride at a time.
-        </p>
+        {/* Footer */}
+        <div className="px-8 py-5 text-center border-t" style={{ borderColor: '#E5E2DC' }}>
+          <p className="text-xs" style={{ color: '#6B6560' }}>
+            © 2026 AmbuQuick · ambuquick.com
+          </p>
+        </div>
       </div>
     </div>
   )

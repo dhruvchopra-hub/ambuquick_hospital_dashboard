@@ -4,7 +4,9 @@
       "Bash(pkill -f 'next dev')",
       "Bash(npx next:*)",
       "Bash(find /Users/dhruvchopra/ambuquick-hospital-dashboard -not -path */node_modules/* -not -path */.next/* -not -path */.claude/* -type d)",
-      "Bash(find /Users/dhruvchopra/ambuquick-hospital-dashboard -not -path */node_modules/* -not -path */.next/* -type f)"
+      "Bash(find /Users/dhruvchopra/ambuquick-hospital-dashboard -not -path */node_modules/* -not -path */.next/* -type f)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "additionalDirectories": [
       "/Users/dhruvchopra/ambuquick-hospital-dashboard/app/driver"

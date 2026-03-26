@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Ride, Ambulance, Hospital } from '@/types'
-import { format, formatDistanceToNow } from 'date-fns'
+import { Ride, Ambulance } from '@/types'
+import { formatDistanceToNow } from 'date-fns'
+import { toast } from 'sonner'
 import {
   Ambulance as AmbulanceIcon, Clock, TrendingUp, IndianRupee,
-  Activity, CheckCircle, Navigation, Circle, AlertTriangle, X,
+  Navigation, CheckCircle, Circle, AlertTriangle, X, Zap,
 } from 'lucide-react'
 
 const NEXT_STATUS: Record<string, string> = {
@@ -15,44 +17,50 @@ const NEXT_STATUS: Record<string, string> = {
 const NEXT_LABEL: Record<string, string> = {
   pending: 'Dispatch', dispatched: 'En Route', en_route: 'Complete',
 }
-const NEXT_COLOR: Record<string, string> = {
-  pending: 'bg-blue-600 hover:bg-blue-700',
-  dispatched: 'bg-indigo-600 hover:bg-indigo-700',
-  en_route: 'bg-green-600 hover:bg-green-700',
+
+function Skeleton({ className }: { className?: string }) {
+  return <div className={`animate-pulse rounded-lg bg-ambu-border/60 ${className}`} />
 }
 
 function RideStatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-700',
-    dispatched: 'bg-blue-100 text-blue-700',
-    en_route: 'bg-indigo-100 text-indigo-700',
-    completed: 'bg-green-100 text-green-700',
-    cancelled: 'bg-red-100 text-red-700',
+  const styles: Record<string, string> = {
+    pending: 'bg-amber-50 text-amber-700 border border-amber-200',
+    dispatched: 'bg-blue-50 text-blue-700 border border-blue-200',
+    en_route: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+    completed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    cancelled: 'bg-red-50 text-red-700 border border-red-200',
   }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${map[status] || 'bg-gray-100 text-gray-600'}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
       {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
     </span>
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    available: 'status-available', on_trip: 'status-on_trip',
-    maintenance: 'status-maintenance', offline: 'status-offline',
+function StatusDot({ status }: { status: string }) {
+  const color: Record<string, string> = {
+    available: 'bg-emerald-500',
+    on_trip: 'bg-blue-500',
+    maintenance: 'bg-amber-500',
+    offline: 'bg-gray-400',
   }
   const label: Record<string, string> = {
     available: 'Available', on_trip: 'On Trip', maintenance: 'Maintenance', offline: 'Offline',
   }
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${map[status] || 'bg-gray-100 text-gray-600'}`}>
+    <div className={`flex items-center gap-1.5 text-xs font-medium ${
+      status === 'available' ? 'text-emerald-700' :
+      status === 'on_trip' ? 'text-blue-700' :
+      status === 'maintenance' ? 'text-amber-700' : 'text-gray-500'
+    }`}>
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color[status] || 'bg-gray-400'}`} />
       {label[status] || status}
-    </span>
+    </div>
   )
 }
 
 export default function OverviewPage() {
-  const [hospital, setHospital] = useState<Hospital | null>(null)
+  const router = useRouter()
   const [ambulances, setAmbulances] = useState<Ambulance[]>([])
   const [recentRides, setRecentRides] = useState<Ride[]>([])
   const [ridesThisMonth, setRidesThisMonth] = useState(0)
@@ -64,34 +72,29 @@ export default function OverviewPage() {
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
-    try {
-      const [{ data: hospitalData }, { data: allRides }, { data: pendingInvoices }, { data: ambData }] = await Promise.all([
-        supabase.from('hospitals').select('*').single(),
-        supabase.from('rides').select('*').order('created_at', { ascending: false }),
-        supabase.from('invoices').select('total').eq('status', 'pending'),
-        supabase.from('ambulances').select('*'),
-      ])
-      if (hospitalData) setHospital(hospitalData as Hospital)
-      if (allRides) {
-        setRecentRides(allRides.slice(0, 10))
-        const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0)
-        setRidesThisMonth(allRides.filter(r => new Date(r.created_at) >= startOfMonth).length)
-        const completed = allRides.filter(r => r.status === 'completed' && r.response_time_minutes != null)
-        if (completed.length > 0) {
-          setAvgResponse(Math.round(completed.reduce((s, r) => s + (r.response_time_minutes || 0), 0) / completed.length))
-        }
+    const [{ data: allRides }, { data: pendingInvoices }, { data: ambData }] = await Promise.all([
+      supabase.from('rides').select('*').order('created_at', { ascending: false }),
+      supabase.from('invoices').select('total').eq('status', 'pending'),
+      supabase.from('ambulances').select('*'),
+    ])
+    if (allRides) {
+      setRecentRides(allRides.slice(0, 10))
+      const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0)
+      setRidesThisMonth(allRides.filter(r => new Date(r.created_at) >= startOfMonth).length)
+      const completed = allRides.filter(r => r.status === 'completed' && r.response_time_minutes != null)
+      if (completed.length > 0) {
+        setAvgResponse(Math.round(completed.reduce((s, r) => s + (r.response_time_minutes || 0), 0) / completed.length))
       }
-      if (pendingInvoices) setPendingInvoice(pendingInvoices.reduce((s, inv) => s + (inv.total || 0), 0))
-      if (ambData) setAmbulances(ambData as Ambulance[])
-    } finally {
-      setLoading(false)
     }
+    if (pendingInvoices) setPendingInvoice(pendingInvoices.reduce((s, inv) => s + (inv.total || 0), 0))
+    if (ambData) setAmbulances(ambData as Ambulance[])
+    setLoading(false)
   }, [])
 
   useEffect(() => {
     loadData()
     const supabase = createClient()
-    const channel = supabase.channel('ambulances-realtime')
+    const channel = supabase.channel('overview-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ambulances' }, loadData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, loadData)
       .subscribe()
@@ -101,127 +104,182 @@ export default function OverviewPage() {
   const updateStatus = async (ride: Ride, newStatus: string) => {
     setUpdating(ride.id)
     const supabase = createClient()
-    try {
-      await supabase.from('rides').update({ status: newStatus }).eq('id', ride.id)
-      if ((newStatus === 'completed' || newStatus === 'cancelled') && ride.ambulance_id) {
-        await supabase.from('ambulances').update({ status: 'available' }).eq('id', ride.ambulance_id)
-      }
-      await loadData()
-    } finally {
-      setUpdating(null)
+    await supabase.from('rides').update({ status: newStatus }).eq('id', ride.id)
+    if ((newStatus === 'completed' || newStatus === 'cancelled') && ride.ambulance_id) {
+      await supabase.from('ambulances').update({ status: 'available' }).eq('id', ride.ambulance_id)
     }
+    toast.success(`Ride marked as ${newStatus.replace('_', ' ')}`)
+    await loadData()
+    setUpdating(null)
   }
 
-  // SLA breaches: dispatched rides older than 10 minutes
   const slaBreaches = recentRides.filter(r => {
     if (r.status !== 'dispatched' || dismissedAlerts.includes(r.id)) return false
     return (Date.now() - new Date(r.created_at).getTime()) / 60000 > 10
   })
 
   const activeAmbulances = ambulances.filter(a => ['available', 'on_trip'].includes(a.status)).length
+  const activeRides = recentRides.filter(r => ['pending', 'dispatched', 'en_route'].includes(r.status))
 
-  if (loading) {
-    return (
-      <div className="p-6 lg:p-8 flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-ambu-red border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          <p className="text-sm text-gray-500">Loading dashboard…</p>
-        </div>
-      </div>
-    )
-  }
+  const metrics = [
+    {
+      label: 'Active Ambulances',
+      value: loading ? '—' : activeAmbulances,
+      sub: loading ? '' : `${ambulances.length} total in fleet`,
+      icon: <AmbulanceIcon className="w-5 h-5" />,
+      color: 'text-blue-600',
+      iconBg: 'bg-blue-50',
+    },
+    {
+      label: 'Avg Response Time',
+      value: loading ? '—' : avgResponse !== null ? `${avgResponse} min` : '—',
+      sub: loading ? '' : avgResponse !== null ? (avgResponse <= 18 ? 'Within SLA ✓' : 'Above SLA target') : 'No data yet',
+      icon: <Clock className="w-5 h-5" />,
+      color: avgResponse !== null && avgResponse <= 18 ? 'text-ambu-success' : avgResponse ? 'text-ambu-red' : 'text-ambu-muted',
+      iconBg: avgResponse !== null && avgResponse <= 18 ? 'bg-emerald-50' : 'bg-red-50',
+    },
+    {
+      label: 'Rides This Month',
+      value: loading ? '—' : ridesThisMonth,
+      sub: 'Current calendar month',
+      icon: <TrendingUp className="w-5 h-5" />,
+      color: 'text-violet-600',
+      iconBg: 'bg-violet-50',
+    },
+    {
+      label: 'Pending Invoice',
+      value: loading ? '—' : `₹${pendingInvoice.toLocaleString('en-IN')}`,
+      sub: 'Awaiting payment',
+      icon: <IndianRupee className="w-5 h-5" />,
+      color: 'text-ambu-warning',
+      iconBg: 'bg-amber-50',
+    },
+  ]
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Overview</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {hospital?.name} · {format(new Date(), 'EEEE, d MMMM yyyy')}
-        </p>
-      </div>
-
+    <div className="p-5 lg:p-7 space-y-5 pb-24">
       {/* SLA Breach Alerts */}
       {slaBreaches.map(ride => (
         <div key={ride.id} className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="w-4 h-4 text-ambu-red flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-red-800">SLA Breach — {ride.patient_name}</p>
-            <p className="text-xs text-red-600 mt-0.5">
-              Dispatched {Math.floor((Date.now() - new Date(ride.created_at).getTime()) / 60000)} minutes ago with no status update. Expected response ≤ 10 min.
+            <p className="text-sm font-semibold text-red-900">SLA Breach — {ride.patient_name}</p>
+            <p className="text-xs text-red-700 mt-0.5">
+              Dispatched {Math.floor((Date.now() - new Date(ride.created_at).getTime()) / 60000)} minutes ago. Expected response ≤ 10 min.
             </p>
           </div>
-          <button onClick={() => setDismissedAlerts(prev => [...prev, ride.id])} className="text-red-400 hover:text-red-600 flex-shrink-0">
+          <button
+            onClick={() => setDismissedAlerts(prev => [...prev, ride.id])}
+            className="text-red-400 hover:text-red-600 flex-shrink-0"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
       ))}
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Active Ambulances" value={activeAmbulances} subtitle={`${ambulances.length} total in fleet`} icon={<AmbulanceIcon className="w-5 h-5" />} color="blue" />
-        <StatCard label="Avg Response Time" value={avgResponse !== null ? `${avgResponse} min` : '—'} subtitle={avgResponse && avgResponse <= 18 ? 'Within SLA ✓' : avgResponse ? 'Above SLA target' : 'No data yet'} icon={<Clock className="w-5 h-5" />} color={avgResponse !== null && avgResponse <= 18 ? 'green' : 'red'} />
-        <StatCard label="Rides This Month" value={ridesThisMonth} subtitle="Current month" icon={<TrendingUp className="w-5 h-5" />} color="purple" />
-        <StatCard label="Pending Invoice" value={`₹${pendingInvoice.toLocaleString('en-IN')}`} subtitle="Awaiting payment" icon={<IndianRupee className="w-5 h-5" />} color="orange" />
+      {/* Metric Cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {metrics.map(m => (
+          <div key={m.label} className="bg-white rounded-2xl border border-ambu-border shadow-sm p-5">
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-7 w-16" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            ) : (
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-medium text-ambu-muted uppercase tracking-wide">{m.label}</p>
+                  <p className={`text-2xl font-bold mt-1 ${m.color}`}>{m.value}</p>
+                  <p className="text-xs text-ambu-muted mt-1">{m.sub}</p>
+                </div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${m.iconBg} ${m.color}`}>
+                  {m.icon}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        {/* Recent Activity */}
-        <div className="xl:col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-ambu-red" /> Recent Activity
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+        {/* Live Dispatch Feed */}
+        <div className="xl:col-span-3 bg-white rounded-2xl border border-ambu-border shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-ambu-dark flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-ambu-red animate-pulse" />
+              Live Dispatch Feed
             </h2>
-            <span className="text-xs text-gray-400">Last 10 rides</span>
+            <span className="text-xs text-ambu-muted">{activeRides.length} active</span>
           </div>
-          {recentRides.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm">No rides yet</div>
-          ) : (
-            <div className="space-y-0">
-              {recentRides.map((ride, idx) => (
-                <div key={ride.id} className="flex gap-4 pb-4 last:pb-0">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      ride.status === 'completed' ? 'bg-green-100' :
-                      ride.status === 'cancelled' ? 'bg-red-100' : 'bg-blue-100'
-                    }`}>
-                      {ride.status === 'completed' ? <CheckCircle className="w-4 h-4 text-green-600" /> :
-                       ride.status === 'en_route' || ride.status === 'dispatched' ? <Navigation className="w-4 h-4 text-blue-600" /> :
-                       <Circle className="w-4 h-4 text-gray-400" />}
-                    </div>
-                    {idx < recentRides.length - 1 && <div className="w-px flex-1 bg-gray-100 mt-1" />}
+
+          {loading ? (
+            <div className="space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex gap-3">
+                  <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-3 w-48" />
                   </div>
-                  <div className="pb-4 flex-1 min-w-0">
+                </div>
+              ))}
+            </div>
+          ) : recentRides.length === 0 ? (
+            <div className="text-center py-10">
+              <AmbulanceIcon className="w-8 h-8 text-ambu-border mx-auto mb-2" />
+              <p className="text-sm text-ambu-muted">No rides yet</p>
+            </div>
+          ) : (
+            <div className="space-y-0 divide-y divide-ambu-border/50">
+              {recentRides.map((ride) => (
+                <div key={ride.id} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    ride.status === 'completed' ? 'bg-emerald-50' :
+                    ride.status === 'cancelled' ? 'bg-red-50' : 'bg-blue-50'
+                  }`}>
+                    {ride.status === 'completed' ? <CheckCircle className="w-4 h-4 text-emerald-600" /> :
+                     ['en_route', 'dispatched'].includes(ride.status) ? <Navigation className="w-4 h-4 text-blue-600" /> :
+                     <Circle className="w-4 h-4 text-ambu-muted" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 truncate">{ride.patient_name}</p>
-                        <p className="text-xs text-gray-500 truncate mt-0.5">{ride.pickup_location} → {ride.destination}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ambu-dark truncate">{ride.patient_name}</p>
+                        <p className="text-xs text-ambu-muted truncate mt-0.5">
+                          {ride.pickup_location} → {ride.destination}
+                        </p>
                       </div>
                       <div className="flex-shrink-0 text-right">
                         <RideStatusBadge status={ride.status} />
-                        <p className="text-xs text-gray-400 mt-1">{formatDistanceToNow(new Date(ride.created_at), { addSuffix: true })}</p>
+                        <p className="text-xs text-ambu-muted mt-1">
+                          {formatDistanceToNow(new Date(ride.created_at), { addSuffix: true })}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        ride.urgency === 'Critical' ? 'bg-red-100 text-red-700' :
-                        ride.urgency === 'Urgent' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                        ride.urgency === 'Critical' ? 'bg-red-50 text-red-700 border-red-200' :
+                        ride.urgency === 'Urgent' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                        'bg-emerald-50 text-emerald-700 border-emerald-200'
                       }`}>{ride.urgency}</span>
-                      {ride.driver_name && <span className="text-xs text-gray-400">{ride.driver_name}</span>}
-                      {/* Action buttons */}
+                      {ride.driver_name && <span className="text-xs text-ambu-muted">{ride.driver_name}</span>}
                       {NEXT_STATUS[ride.status] && (
                         <button
                           onClick={() => updateStatus(ride, NEXT_STATUS[ride.status])}
                           disabled={updating === ride.id}
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium text-white transition-all disabled:opacity-50 ${NEXT_COLOR[ride.status]}`}
+                          className="text-xs px-2 py-0.5 rounded-full font-medium text-white bg-ambu-dark hover:bg-ambu-dark/80 transition disabled:opacity-50"
                         >
                           {updating === ride.id ? '…' : NEXT_LABEL[ride.status]}
                         </button>
                       )}
-                      {(ride.status === 'pending' || ride.status === 'dispatched') && (
+                      {['pending', 'dispatched'].includes(ride.status) && (
                         <button
                           onClick={() => updateStatus(ride, 'cancelled')}
                           disabled={updating === ride.id}
-                          className="text-xs px-2 py-0.5 rounded-full font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-all disabled:opacity-50"
+                          className="text-xs px-2 py-0.5 rounded-full font-medium text-ambu-red bg-red-50 hover:bg-red-100 transition disabled:opacity-50"
                         >
                           Cancel
                         </button>
@@ -235,53 +293,48 @@ export default function OverviewPage() {
         </div>
 
         {/* Fleet Status */}
-        <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h2 className="font-semibold text-gray-900 flex items-center gap-2 mb-5">
-            <AmbulanceIcon className="w-4 h-4 text-ambu-red" /> Fleet Status
+        <div className="xl:col-span-2 bg-white rounded-2xl border border-ambu-border shadow-sm p-5">
+          <h2 className="font-semibold text-ambu-dark flex items-center gap-2 mb-4">
+            <AmbulanceIcon className="w-4 h-4 text-ambu-red" />
+            Fleet Status
           </h2>
-          {ambulances.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm">No ambulances found</div>
-          ) : (
+
+          {loading ? (
             <div className="space-y-3">
+              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+            </div>
+          ) : ambulances.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-ambu-muted">No ambulances found</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
               {ambulances.map(amb => (
-                <div key={amb.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <div key={amb.id} className="flex items-center justify-between p-3 bg-ambu-bg rounded-xl">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">{amb.code}</p>
-                    <p className="text-xs text-gray-500 truncate">{amb.driver_name}</p>
-                    <p className="text-xs text-gray-400">{amb.type === 'hospital_fleet' ? 'Hospital Fleet' : `AmbuQuick ${amb.type}`}</p>
+                    <p className="text-sm font-bold text-ambu-dark">{amb.code}</p>
+                    <p className="text-xs text-ambu-muted truncate mt-0.5">{amb.driver_name}</p>
+                    <p className="text-xs text-ambu-muted/60">
+                      {amb.is_hospital_fleet ? 'Hospital Fleet' : `AmbuQuick ${amb.type}`}
+                    </p>
                   </div>
-                  <StatusBadge status={amb.status} />
+                  <StatusDot status={amb.status} />
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
-    </div>
-  )
-}
 
-function StatCard({ label, value, subtitle, icon, color }: {
-  label: string; value: string | number; subtitle: string; icon: React.ReactNode; color: 'blue' | 'green' | 'red' | 'purple' | 'orange'
-}) {
-  const colors = {
-    blue: { text: 'text-blue-600', icon: 'bg-blue-100 text-blue-600' },
-    green: { text: 'text-green-600', icon: 'bg-green-100 text-green-600' },
-    red: { text: 'text-red-600', icon: 'bg-red-100 text-red-600' },
-    purple: { text: 'text-purple-600', icon: 'bg-purple-100 text-purple-600' },
-    orange: { text: 'text-orange-600', icon: 'bg-orange-100 text-orange-600' },
-  }
-  const c = colors[color]
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
-          <p className={`text-2xl font-bold mt-1 ${c.text}`}>{value}</p>
-          <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
-        </div>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.icon}`}>{icon}</div>
-      </div>
+      {/* Emergency SOS Button */}
+      <button
+        onClick={() => router.push('/book')}
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-ambu-red hover:bg-ambu-red-dark text-white font-bold px-5 py-3.5 rounded-full shadow-2xl transition-all hover:scale-105 active:scale-95"
+        style={{ boxShadow: '0 0 0 4px rgba(217,26,42,0.15), 0 8px 24px rgba(217,26,42,0.35)' }}
+      >
+        <Zap className="w-4 h-4" />
+        Emergency SOS
+      </button>
     </div>
   )
 }
