@@ -98,8 +98,8 @@ export default function Sidebar({ hospitalName }: SidebarProps) {
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-gray-900 flex items-center justify-between px-4 py-3 border-b border-gray-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-ambu-red rounded-md flex items-center justify-center">
-            <Ambulance className="w-4 h-4 text-white" />
+          <div className="w-7 h-7 rounded-md flex items-center justify-center overflow-hidden">
+            <Image src="/logo.png" alt="AmbuQuick" width={28} height={28} className="object-contain" />
           </div>
           <span className="text-white font-bold text-sm">AmbuQuick</span>
         </div>
