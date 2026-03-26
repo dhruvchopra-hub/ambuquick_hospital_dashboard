@@ -29,12 +29,16 @@ CREATE TABLE IF NOT EXISTS public.ambulances (
   type TEXT NOT NULL DEFAULT 'BLS',
   driver_name TEXT,
   driver_phone TEXT,
+  driver_pin TEXT,
   status TEXT NOT NULL DEFAULT 'available'
     CHECK (status IN ('available', 'on_trip', 'maintenance', 'offline')),
   hospital_id UUID REFERENCES public.hospitals(id),
   is_hospital_fleet BOOLEAN DEFAULT FALSE,
   lat DECIMAL(10, 8) DEFAULT 28.6139,
   lng DECIMAL(11, 8) DEFAULT 77.2090,
+  reg_number TEXT,
+  last_service_date DATE,
+  next_service_date DATE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -43,6 +47,9 @@ CREATE TABLE IF NOT EXISTS public.rides (
   hospital_id UUID REFERENCES public.hospitals(id),
   patient_name TEXT NOT NULL,
   patient_phone TEXT,
+  patient_age INTEGER,
+  patient_gender TEXT CHECK (patient_gender IN ('Male', 'Female', 'Other')),
+  chief_complaint TEXT,
   pickup_location TEXT NOT NULL,
   destination TEXT NOT NULL,
   urgency TEXT NOT NULL CHECK (urgency IN ('Critical', 'Urgent', 'Scheduled')),
@@ -189,7 +196,7 @@ INSERT INTO public.hospitals (id, name, contact_person, email, city, partner_sin
 VALUES (
   'aaaaaaaa-0000-0000-0000-000000000001',
   'Ujala Cygnus Hospital',
-  'Dr. Priya Sharma',
+  'Kripal Negi',
   'demo@ujala.com',
   'New Delhi',
   '2023-01-15'
@@ -197,12 +204,12 @@ VALUES (
 
 
 -- Ambulances (2 AmbuQuick + 2 Hospital fleet)
-INSERT INTO public.ambulances (id, code, type, driver_name, driver_phone, status, hospital_id, is_hospital_fleet, lat, lng)
+INSERT INTO public.ambulances (id, code, type, driver_name, driver_phone, driver_pin, status, hospital_id, is_hospital_fleet, lat, lng, reg_number, last_service_date, next_service_date)
 VALUES
-  ('bbbbbbbb-0001-0000-0000-000000000001', 'AQ-DL-001', 'BLS', 'Rajesh Kumar',   '9876543201', 'available',   'aaaaaaaa-0000-0000-0000-000000000001', FALSE, 28.6139, 77.2090),
-  ('bbbbbbbb-0002-0000-0000-000000000002', 'AQ-DL-002', 'ALS', 'Sunil Sharma',   '9876543202', 'on_trip',     'aaaaaaaa-0000-0000-0000-000000000001', FALSE, 28.6320, 77.2185),
-  ('bbbbbbbb-0003-0000-0000-000000000003', 'UC-DL-001', 'hospital_fleet', 'Dinesh Verma',   '9876543203', 'available',   'aaaaaaaa-0000-0000-0000-000000000001', TRUE,  28.6050, 77.2100),
-  ('bbbbbbbb-0004-0000-0000-000000000004', 'UC-DL-002', 'hospital_fleet', 'Mohan Lal',      '9876543204', 'maintenance', 'aaaaaaaa-0000-0000-0000-000000000001', TRUE,  28.6150, 77.1950)
+  ('bbbbbbbb-0001-0000-0000-000000000001', 'AQ-DL-001', 'BLS', 'Rajesh Kumar', '9876543201', '4821', 'available',   'aaaaaaaa-0000-0000-0000-000000000001', FALSE, 28.6139, 77.2090, 'DL 4C AB 1234', '2026-01-10', '2026-07-10'),
+  ('bbbbbbbb-0002-0000-0000-000000000002', 'AQ-DL-002', 'ALS', 'Sunil Sharma', '9876543202', '7364', 'on_trip',     'aaaaaaaa-0000-0000-0000-000000000001', FALSE, 28.6320, 77.2185, 'DL 4C AB 1235', '2025-12-05', '2026-06-05'),
+  ('bbbbbbbb-0003-0000-0000-000000000003', 'UC-DL-001', 'hospital_fleet', 'Dinesh Verma', '9876543203', '2958', 'available',   'aaaaaaaa-0000-0000-0000-000000000001', TRUE,  28.6050, 77.2100, 'DL 5C UC 3341', '2026-02-20', '2026-08-20'),
+  ('bbbbbbbb-0004-0000-0000-000000000004', 'UC-DL-002', 'hospital_fleet', 'Mohan Lal',   '9876543204', '6173', 'maintenance', 'aaaaaaaa-0000-0000-0000-000000000001', TRUE,  28.6150, 77.1950, 'DL 5C UC 3342', '2025-11-15', '2026-05-15')
 ON CONFLICT (id) DO NOTHING;
 
 
@@ -243,19 +250,19 @@ VALUES
   (
     'cccccccc-0001-0000-0000-000000000001',
     'aaaaaaaa-0000-0000-0000-000000000001',
-    'January 2025', 5, 9800.00, 1764.00, 11564.00, 'paid',
+    'January 2026', 5, 9800.00, 1764.00, 11564.00, 'paid',
     NOW() - INTERVAL '55 days'
   ),
   (
     'cccccccc-0002-0000-0000-000000000002',
     'aaaaaaaa-0000-0000-0000-000000000001',
-    'February 2025', 6, 11000.00, 1980.00, 12980.00, 'paid',
+    'February 2026', 6, 11000.00, 1980.00, 12980.00, 'paid',
     NOW() - INTERVAL '25 days'
   ),
   (
     'cccccccc-0003-0000-0000-000000000003',
     'aaaaaaaa-0000-0000-0000-000000000001',
-    'March 2025', 6, 11000.00, 1980.00, 12980.00, 'pending',
+    'March 2026', 8, 16500.00, 2970.00, 19470.00, 'pending',
     NOW() - INTERVAL '2 days'
   )
 ON CONFLICT (id) DO NOTHING;

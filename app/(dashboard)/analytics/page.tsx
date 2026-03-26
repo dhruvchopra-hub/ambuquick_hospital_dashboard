@@ -185,11 +185,11 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <ChartCard title="Rides by Urgency Type" subtitle="Distribution across urgency levels">
           {loading ? <Skeleton className="h-52" /> : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={byUrgency} barSize={40}>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={byUrgency} barSize={40} margin={{ bottom: 20, left: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E2DC" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} label={{ value: 'Urgency Type', position: 'insideBottom', offset: -10, fontSize: 11, fill: '#6B6560' }} />
+                <YAxis tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} label={{ value: 'Rides', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#6B6560' }} />
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Bar dataKey="rides" name="Rides" radius={[6, 6, 0, 0]}>
                   {byUrgency.map((e, i) => <Cell key={i} fill={e.fill} />)}
@@ -201,11 +201,11 @@ export default function AnalyticsPage() {
 
         <ChartCard title="Response Time Distribution" subtitle="How fast ambulances are reaching patients">
           {loading ? <Skeleton className="h-52" /> : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={rtBreakdown} barSize={40}>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={rtBreakdown} barSize={40} margin={{ bottom: 20, left: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E2DC" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6B6560' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6B6560' }} axisLine={false} tickLine={false} label={{ value: 'Response Band', position: 'insideBottom', offset: -10, fontSize: 11, fill: '#6B6560' }} />
+                <YAxis tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} label={{ value: 'Rides', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#6B6560' }} />
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Bar dataKey="count" name="Rides" radius={[6, 6, 0, 0]}>
                   {rtBreakdown.map((e, i) => <Cell key={i} fill={e.fill} />)}
@@ -222,11 +222,11 @@ export default function AnalyticsPage() {
           {loading ? <Skeleton className="h-52" /> : fleetPerf.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-ambu-muted text-sm">No fleet data</div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={fleetPerf} barSize={24}>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={fleetPerf} barSize={24} margin={{ bottom: 20, left: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E2DC" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6B6560' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6B6560' }} axisLine={false} tickLine={false} label={{ value: 'Vehicle', position: 'insideBottom', offset: -10, fontSize: 11, fill: '#6B6560' }} />
+                <YAxis tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} label={{ value: 'Count / Min', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#6B6560' }} />
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
                 <Bar dataKey="rides" name="Total Rides" fill="#D91A2A" radius={[4, 4, 0, 0]} />
@@ -238,7 +238,7 @@ export default function AnalyticsPage() {
 
         <ChartCard title="Rides by Urgency — Donut" subtitle="Share of each urgency type in selected period">
           {loading ? <Skeleton className="h-52" /> : (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie
                   data={byUrgency}
@@ -263,8 +263,8 @@ export default function AnalyticsPage() {
       {/* Row 4: Monthly Spend Trend */}
       <ChartCard title="Monthly Spend Trend" subtitle="Total billing over the last 6 months">
         {loading ? <Skeleton className="h-52" /> : (
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={monthlySpend}>
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={monthlySpend} margin={{ bottom: 20, left: 20 }}>
               <defs>
                 <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#D91A2A" stopOpacity={0.12} />
@@ -272,12 +272,13 @@ export default function AnalyticsPage() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E2DC" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6B6560' }} axisLine={false} tickLine={false} label={{ value: 'Month', position: 'insideBottom', offset: -10, fontSize: 11, fill: '#6B6560' }} />
               <YAxis
                 tick={{ fontSize: 11, fill: '#6B6560' }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={v => `₹${v / 1000}K`}
+                label={{ value: 'Spend (₹)', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#6B6560' }}
               />
               <Tooltip
                 contentStyle={{ borderRadius: '10px', border: '1px solid #E5E2DC', fontSize: '12px' }}

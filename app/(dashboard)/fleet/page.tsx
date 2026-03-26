@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Ambulance } from '@/types'
 import { toast } from 'sonner'
-import { Truck, Plus, Edit2, Loader2, X, CheckCircle, Shield, Building2, Link2, KeyRound } from 'lucide-react'
+import { Truck, Plus, Edit2, Loader2, X, CheckCircle, Shield, Building2, Link2, KeyRound, Calendar, Wrench } from 'lucide-react'
+import { format, differenceInDays, parseISO } from 'date-fns'
 
 const STATUSES = ['available', 'on_trip', 'maintenance', 'offline'] as const
 type Status = typeof STATUSES[number]
@@ -164,6 +165,31 @@ export default function FleetPage() {
             <span className="font-mono text-ambu-dark">{amb.driver_pin}</span>
           </div>
         )}
+        {amb.reg_number && (
+          <div className="flex justify-between text-xs">
+            <span className="text-ambu-muted flex items-center gap-1"><Truck className="w-3 h-3" /> Reg No.</span>
+            <span className="font-mono text-ambu-dark">{amb.reg_number}</span>
+          </div>
+        )}
+        {amb.last_service_date && (
+          <div className="flex justify-between text-xs">
+            <span className="text-ambu-muted flex items-center gap-1"><Wrench className="w-3 h-3" /> Last Service</span>
+            <span className="text-ambu-dark">{format(parseISO(amb.last_service_date), 'dd MMM yyyy')}</span>
+          </div>
+        )}
+        {amb.next_service_date && (() => {
+          const daysLeft = differenceInDays(parseISO(amb.next_service_date), new Date())
+          const isDue = daysLeft <= 30
+          return (
+            <div className="flex justify-between text-xs">
+              <span className="text-ambu-muted flex items-center gap-1"><Calendar className="w-3 h-3" /> Next Service</span>
+              <span className={isDue ? 'text-amber-600 font-semibold' : 'text-ambu-dark'}>
+                {format(parseISO(amb.next_service_date), 'dd MMM yyyy')}
+                {isDue && <span className="ml-1 text-amber-600">({daysLeft}d)</span>}
+              </span>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

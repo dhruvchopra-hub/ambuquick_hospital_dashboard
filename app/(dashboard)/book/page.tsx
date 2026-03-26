@@ -58,8 +58,9 @@ export default function BookAmbulancePage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [dispatched, setDispatched] = useState<{ driverName: string; vehicleCode: string; eta: number } | null>(null)
   const [form, setForm] = useState({
-    patient_name: '', patient_phone: '', pickup_location: '',
-    destination: '', urgency: 'Urgent' as Urgency, ambulance_id: '',
+    patient_name: '', patient_phone: '', patient_age: '', patient_gender: '',
+    pickup_location: '', destination: '', chief_complaint: '',
+    urgency: 'Urgent' as Urgency, ambulance_id: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -92,8 +93,11 @@ export default function BookAmbulancePage() {
     if (!form.patient_name.trim()) e.patient_name = 'Patient name is required'
     if (!form.patient_phone.trim()) e.patient_phone = 'Phone number is required'
     if (!/^[0-9]{10}$/.test(form.patient_phone.replace(/\s/g, ''))) e.patient_phone = 'Enter a valid 10-digit phone number'
+    if (!form.patient_age || isNaN(Number(form.patient_age)) || Number(form.patient_age) < 0 || Number(form.patient_age) > 120) e.patient_age = 'Enter a valid age (0–120)'
+    if (!form.patient_gender) e.patient_gender = 'Please select gender'
     if (!form.pickup_location.trim()) e.pickup_location = 'Pickup location is required'
     if (!form.destination.trim()) e.destination = 'Destination is required'
+    if (!form.chief_complaint.trim()) e.chief_complaint = 'Chief complaint is required'
     if (!form.ambulance_id) e.ambulance_id = 'Please select an ambulance'
     return e
   }
@@ -118,6 +122,9 @@ export default function BookAmbulancePage() {
       hospital_id: hospitalId,
       patient_name: form.patient_name,
       patient_phone: form.patient_phone,
+      patient_age: Number(form.patient_age),
+      patient_gender: form.patient_gender,
+      chief_complaint: form.chief_complaint,
       pickup_location: form.pickup_location,
       destination: form.destination,
       urgency: form.urgency,
@@ -131,7 +138,7 @@ export default function BookAmbulancePage() {
     if (selectedAmb) {
       await supabase.from('ambulances').update({ status: 'on_trip' }).eq('id', form.ambulance_id)
       setDispatched({ driverName: selectedAmb.driver_name, vehicleCode: selectedAmb.code, eta })
-      setForm({ patient_name: '', patient_phone: '', pickup_location: '', destination: '', urgency: 'Urgent', ambulance_id: '' })
+      setForm({ patient_name: '', patient_phone: '', patient_age: '', patient_gender: '', pickup_location: '', destination: '', chief_complaint: '', urgency: 'Urgent', ambulance_id: '' })
       await loadAmbs(supabase)
       toast.success('Ambulance dispatched successfully!')
     }
@@ -188,6 +195,30 @@ export default function BookAmbulancePage() {
               </div>
               {errors.patient_phone && <p className="text-ambu-red text-xs mt-1">{errors.patient_phone}</p>}
             </div>
+            <div>
+              <label className="block text-sm font-medium text-ambu-dark mb-1.5">Patient Age</label>
+              <input
+                type="number" min={0} max={120} value={form.patient_age}
+                onChange={e => f('patient_age', e.target.value)}
+                placeholder="Age in years"
+                className={inputCls(errors.patient_age)}
+              />
+              {errors.patient_age && <p className="text-ambu-red text-xs mt-1">{errors.patient_age}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-ambu-dark mb-1.5">Patient Gender</label>
+              <select
+                value={form.patient_gender}
+                onChange={e => f('patient_gender', e.target.value)}
+                className={inputCls(errors.patient_gender)}
+              >
+                <option value="">Select gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+              {errors.patient_gender && <p className="text-ambu-red text-xs mt-1">{errors.patient_gender}</p>}
+            </div>
           </div>
         </div>
 
@@ -221,6 +252,17 @@ export default function BookAmbulancePage() {
               />
             </div>
             {errors.destination && <p className="text-ambu-red text-xs mt-1">{errors.destination}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ambu-dark mb-1.5">Chief Complaint</label>
+            <textarea
+              rows={2}
+              value={form.chief_complaint}
+              onChange={e => f('chief_complaint', e.target.value)}
+              placeholder="e.g. Chest pain, shortness of breath since 2 hours"
+              className={`${inputCls(errors.chief_complaint)} resize-none`}
+            />
+            {errors.chief_complaint && <p className="text-ambu-red text-xs mt-1">{errors.chief_complaint}</p>}
           </div>
         </div>
 
@@ -319,6 +361,8 @@ export default function BookAmbulancePage() {
               {[
                 { label: 'Patient', value: form.patient_name },
                 { label: 'Phone', value: form.patient_phone },
+                { label: 'Age / Gender', value: `${form.patient_age} yrs · ${form.patient_gender}` },
+                { label: 'Chief Complaint', value: form.chief_complaint },
                 { label: 'Pickup', value: form.pickup_location },
                 { label: 'Destination', value: form.destination },
                 { label: 'Urgency', value: form.urgency },

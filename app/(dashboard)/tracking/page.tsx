@@ -39,6 +39,42 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-ambu-border/60 rounded-lg ${className}`} />
 }
 
+const DELHI_NCR_AREAS = [
+  { name: 'Connaught Place',       lat: 28.6315, lng: 77.2167 },
+  { name: 'Rohini Sector 15',      lat: 28.7302, lng: 77.1097 },
+  { name: 'Karol Bagh',            lat: 28.6520, lng: 77.1890 },
+  { name: 'Dwarka Sector 12',      lat: 28.5921, lng: 77.0460 },
+  { name: 'Saket',                 lat: 28.5244, lng: 77.2066 },
+  { name: 'Noida Sector 18',       lat: 28.5706, lng: 77.3219 },
+  { name: 'Gurugram Sector 49',    lat: 28.4089, lng: 77.0386 },
+  { name: 'Pitampura',             lat: 28.7031, lng: 77.1283 },
+  { name: 'Laxmi Nagar',           lat: 28.6326, lng: 77.2783 },
+  { name: 'Janakpuri',             lat: 28.6252, lng: 77.0822 },
+  { name: 'Vasant Kunj',           lat: 28.5185, lng: 77.1580 },
+  { name: 'Ashok Vihar',           lat: 28.6934, lng: 77.1780 },
+  { name: 'Mayur Vihar Phase 1',   lat: 28.6085, lng: 77.2882 },
+  { name: 'Kalkaji',               lat: 28.5430, lng: 77.2620 },
+  { name: 'Uttam Nagar',           lat: 28.6220, lng: 77.0539 },
+  { name: 'Model Town',            lat: 28.7121, lng: 77.1962 },
+  { name: 'Shahdara',              lat: 28.6699, lng: 77.2952 },
+  { name: 'Shalimar Bagh',         lat: 28.7195, lng: 77.1706 },
+  { name: 'Rajouri Garden',        lat: 28.6458, lng: 77.1129 },
+  { name: 'Narela',                lat: 28.8524, lng: 77.0942 },
+  { name: 'Civil Lines',           lat: 28.6794, lng: 77.2246 },
+  { name: 'Daryaganj',             lat: 28.6401, lng: 77.2375 },
+  { name: 'Patel Nagar',           lat: 28.6546, lng: 77.1667 },
+]
+
+function getAreaName(lat: number, lng: number): string {
+  let nearest = DELHI_NCR_AREAS[0]
+  let minDist = Infinity
+  for (const area of DELHI_NCR_AREAS) {
+    const d = Math.pow(lat - area.lat, 2) + Math.pow(lng - area.lng, 2)
+    if (d < minDist) { minDist = d; nearest = area }
+  }
+  return nearest.name
+}
+
 export default function TrackingPage() {
   const [ambulances, setAmbulances] = useState<Ambulance[]>([])
   const [activeRides, setActiveRides] = useState<Ride[]>([])
@@ -197,7 +233,7 @@ export default function TrackingPage() {
                       <StatusDot status={amb.status} />
                     </div>
                     <p className="text-xs text-ambu-muted/60 mt-1">
-                      {Number(amb.lat).toFixed(4)}, {Number(amb.lng).toFixed(4)}
+                      {getAreaName(Number(amb.lat), Number(amb.lng))}
                     </p>
                   </button>
                 ))}

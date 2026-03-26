@@ -14,11 +14,15 @@ export interface Ambulance {
   type: string
   driver_name: string
   driver_phone: string
+  driver_pin?: string
   status: 'available' | 'on_trip' | 'maintenance' | 'offline'
   hospital_id: string
   is_hospital_fleet: boolean
   lat: number
   lng: number
+  reg_number?: string
+  last_service_date?: string
+  next_service_date?: string
   created_at: string
 }
 
@@ -27,6 +31,9 @@ export interface Ride {
   hospital_id: string
   patient_name: string
   patient_phone: string
+  patient_age?: number
+  patient_gender?: string
+  chief_complaint?: string
   pickup_location: string
   destination: string
   urgency: 'Critical' | 'Urgent' | 'Scheduled'

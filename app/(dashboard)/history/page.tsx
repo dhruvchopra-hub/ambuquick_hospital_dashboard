@@ -48,6 +48,11 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-ambu-border/60 rounded-lg ${className}`} />
 }
 
+function maskPhone(phone: string): string {
+  if (!phone || phone.length < 7) return phone
+  return phone.slice(0, 3) + '•••' + phone.slice(-4)
+}
+
 export default function RideHistoryPage() {
   const [rides, setRides] = useState<Ride[]>([])
   const [filtered, setFiltered] = useState<Ride[]>([])
@@ -98,7 +103,7 @@ export default function RideHistoryPage() {
     const rows = filtered.map(r => [
       r.id.substring(0, 8).toUpperCase(),
       format(new Date(r.created_at), 'dd/MM/yyyy HH:mm'),
-      r.patient_name, r.patient_phone,
+      r.patient_name, maskPhone(r.patient_phone),
       `"${r.pickup_location}"`, `"${r.destination}"`,
       r.urgency, r.driver_name || '—',
       r.response_time_minutes ?? '—', r.status, r.amount ?? 0,
@@ -114,7 +119,7 @@ export default function RideHistoryPage() {
 
   const completedFiltered = filtered.filter(r => r.status === 'completed')
   const slaCompliance = completedFiltered.length > 0
-    ? Math.round(completedFiltered.filter(r => (r.response_time_minutes || 0) <= 18).length / completedFiltered.length * 100)
+    ? Math.round(completedFiltered.filter(r => (r.response_time_minutes ?? 99) <= 18).length / completedFiltered.length * 100)
     : 0
 
   return (
@@ -233,7 +238,7 @@ export default function RideHistoryPage() {
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-semibold text-ambu-dark">{ride.patient_name}</p>
-                        <p className="text-xs text-ambu-muted">{ride.patient_phone}</p>
+                        <p className="text-xs text-ambu-muted">{maskPhone(ride.patient_phone)}</p>
                       </td>
                       <td className="px-4 py-3"><UrgencyBadge u={ride.urgency} /></td>
                       <td className="px-4 py-3 text-xs text-ambu-dark font-medium">{ride.driver_name || '—'}</td>
