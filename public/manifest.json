@@ -1,0 +1,17 @@
+{
+  "name": "AmbuQuick Driver",
+  "short_name": "AmbuQuick",
+  "description": "AmbuQuick driver tracking app",
+  "start_url": "/driver",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#030712",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

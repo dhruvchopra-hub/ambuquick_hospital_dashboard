@@ -4,17 +4,8 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  LayoutDashboard,
-  PlusCircle,
-  MapPin,
-  Clock,
-  Truck,
-  FileText,
-  BarChart3,
-  Ambulance,
-  LogOut,
-  Menu,
-  X,
+  LayoutDashboard, PlusCircle, MapPin, Clock, Truck,
+  FileText, BarChart3, Ambulance, LogOut, Menu, X, Settings,
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
@@ -27,6 +18,7 @@ const navItems = [
   { href: '/fleet', label: 'Fleet Manager', icon: Truck },
   { href: '/invoices', label: 'Invoices', icon: FileText },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 interface SidebarProps {

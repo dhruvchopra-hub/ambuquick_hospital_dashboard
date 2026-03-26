@@ -110,7 +110,7 @@ export default function TrackingPage() {
 
       <div className="flex flex-col lg:flex-row gap-4" style={{ height: '65vh' }}>
         <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative min-h-[300px]">
-          <MapComponent ambulances={ambulances} selected={selected} onSelect={setSelected} />
+          <MapComponent ambulances={ambulances} rides={activeRides} selected={selected} onSelect={setSelected} />
         </div>
 
         <div className="lg:w-72 xl:w-80 flex flex-col gap-3 overflow-y-auto">

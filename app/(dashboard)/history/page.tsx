@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Ride } from '@/types'
 import { format } from 'date-fns'
@@ -8,8 +8,15 @@ import { Clock, Download, Filter, CheckCircle, AlertCircle } from 'lucide-react'
 
 const MONTHS = [
   'All Time', 'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
+  'July', 'August', 'September', 'October', 'November', 'December',
 ]
+
+const NEXT_STATUS: Record<string, string> = {
+  pending: 'dispatched', dispatched: 'en_route', en_route: 'completed',
+}
+const NEXT_LABEL: Record<string, string> = {
+  pending: 'Dispatch', dispatched: 'En Route', en_route: 'Complete',
+}
 
 function UrgencyBadge({ u }: { u: string }) {
   return (
@@ -36,25 +43,16 @@ export default function RideHistoryPage() {
   const [filtered, setFiltered] = useState<Ride[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState('All Time')
+  const [updating, setUpdating] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     const supabase = createClient()
-    async function loadData() {
-      try {
-        const { data } = await supabase
-          .from('rides')
-          .select('*')
-          .order('created_at', { ascending: false })
-        if (data) {
-          setRides(data as Ride[])
-          setFiltered(data as Ride[])
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
+    const { data } = await supabase.from('rides').select('*').order('created_at', { ascending: false })
+    if (data) { setRides(data as Ride[]); setFiltered(data as Ride[]) }
+    setLoading(false)
   }, [])
+
+  useEffect(() => { loadData() }, [loadData])
 
   useEffect(() => {
     if (selectedMonth === 'All Time') {
@@ -65,24 +63,33 @@ export default function RideHistoryPage() {
     }
   }, [selectedMonth, rides])
 
+  const updateStatus = async (ride: Ride, newStatus: string) => {
+    setUpdating(ride.id)
+    const supabase = createClient()
+    try {
+      await supabase.from('rides').update({ status: newStatus }).eq('id', ride.id)
+      if ((newStatus === 'completed' || newStatus === 'cancelled') && ride.ambulance_id) {
+        await supabase.from('ambulances').update({ status: 'available' }).eq('id', ride.ambulance_id)
+      }
+      await loadData()
+    } finally {
+      setUpdating(null)
+    }
+  }
+
   const exportCSV = () => {
     const headers = ['Ride ID', 'Date', 'Patient Name', 'Phone', 'Pickup', 'Destination', 'Urgency', 'Driver', 'Response Time (min)', 'Status', 'Amount (₹)']
     const rows = filtered.map(r => [
-      r.id.substring(0, 8).toUpperCase(),
-      format(new Date(r.created_at), 'dd/MM/yyyy HH:mm'),
-      r.patient_name, r.patient_phone,
-      `"${r.pickup_location}"`, `"${r.destination}"`,
-      r.urgency, r.driver_name || '—',
-      r.response_time_minutes ?? '—', r.status, r.amount ?? 0,
+      r.id.substring(0, 8).toUpperCase(), format(new Date(r.created_at), 'dd/MM/yyyy HH:mm'),
+      r.patient_name, r.patient_phone, `"${r.pickup_location}"`, `"${r.destination}"`,
+      r.urgency, r.driver_name || '—', r.response_time_minutes ?? '—', r.status, r.amount ?? 0,
     ])
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
+    const a = document.createElement('a'); a.href = url
     a.download = `rides-${selectedMonth.toLowerCase().replace(' ', '-')}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    a.click(); URL.revokeObjectURL(url)
   }
 
   if (loading) {
@@ -94,11 +101,7 @@ export default function RideHistoryPage() {
   }
 
   const slaCompliance = filtered.filter(r => r.status === 'completed').length > 0
-    ? Math.round(
-        filtered.filter(r => r.status === 'completed' && (r.response_time_minutes || 0) <= 18).length /
-        filtered.filter(r => r.status === 'completed').length * 100
-      )
-    : 0
+    ? Math.round(filtered.filter(r => r.status === 'completed' && (r.response_time_minutes || 0) <= 18).length / filtered.filter(r => r.status === 'completed').length * 100) : 0
 
   return (
     <div className="p-6 lg:p-8 space-y-5">
@@ -143,14 +146,14 @@ export default function RideHistoryPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                {['Ride ID', 'Date & Time', 'Patient', 'Type', 'Driver', 'Response', 'Status', 'Amount'].map((h, i) => (
+                {['Ride ID', 'Date & Time', 'Patient', 'Type', 'Driver', 'Response', 'Status', 'Amount', 'Actions'].map((h, i) => (
                   <th key={h} className={`px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide ${i === 7 ? 'text-right' : 'text-left'}`}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-12 text-gray-400 text-sm">No rides found for {selectedMonth}</td></tr>
+                <tr><td colSpan={9} className="text-center py-12 text-gray-400 text-sm">No rides found for {selectedMonth}</td></tr>
               ) : (
                 filtered.map(ride => {
                   const rt = ride.response_time_minutes
@@ -178,6 +181,28 @@ export default function RideHistoryPage() {
                       </td>
                       <td className="px-4 py-3"><StatusBadge s={ride.status} /></td>
                       <td className="px-4 py-3 text-right font-semibold text-gray-900">₹{(ride.amount || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          {NEXT_STATUS[ride.status] && (
+                            <button
+                              onClick={() => updateStatus(ride, NEXT_STATUS[ride.status])}
+                              disabled={updating === ride.id}
+                              className="text-xs px-2 py-1 rounded-lg font-medium bg-gray-100 hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-all disabled:opacity-50 whitespace-nowrap"
+                            >
+                              {updating === ride.id ? '…' : NEXT_LABEL[ride.status]}
+                            </button>
+                          )}
+                          {(ride.status === 'pending' || ride.status === 'dispatched') && (
+                            <button
+                              onClick={() => updateStatus(ride, 'cancelled')}
+                              disabled={updating === ride.id}
+                              className="text-xs px-2 py-1 rounded-lg font-medium bg-red-50 hover:bg-red-100 text-red-600 transition-all disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   )
                 })
