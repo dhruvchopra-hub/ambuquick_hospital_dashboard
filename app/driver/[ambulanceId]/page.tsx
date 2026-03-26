@@ -116,7 +116,7 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
 
   const installApp = async () => {
     if (!deferredPromptRef.current) return
-    const prompt = deferredPromptRef.current as { prompt: () => void; userChoice: Promise<{ outcome: string }> }
+    const prompt = deferredPromptRef.current as unknown as { prompt: () => void; userChoice: Promise<{ outcome: string }> }
     prompt.prompt()
     const { outcome } = await prompt.userChoice
     if (outcome === 'accepted') setShowInstall(false)
