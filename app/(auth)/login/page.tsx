@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertCircle, Loader2, Ambulance } from 'lucide-react'
+import Image from 'next/image'
+import { AlertCircle, Loader2 } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -85,8 +86,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-ambu-red rounded-2xl mb-4 shadow-lg">
-            <Ambulance className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg overflow-hidden">
+            <Image src="/logo.png" alt="AmbuQuick" width={64} height={64} className="object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-ambu-red tracking-tight">AmbuQuick</h1>
           <p className="text-gray-500 text-sm mt-1">Hospital Partner Dashboard</p>

@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import Image from 'next/image'
 import {
   LayoutDashboard, PlusCircle, MapPin, Clock, Truck,
-  FileText, BarChart3, Ambulance, LogOut, Menu, X, Settings,
+  FileText, BarChart3, LogOut, Menu, X, Settings,
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
@@ -41,8 +42,8 @@ export default function Sidebar({ hospitalName }: SidebarProps) {
       {/* Brand */}
       <div className="px-6 py-5 border-b border-gray-800">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-ambu-red rounded-lg flex items-center justify-center flex-shrink-0">
-            <Ambulance className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <Image src="/logo.png" alt="AmbuQuick" width={36} height={36} className="object-contain" />
           </div>
           <div>
             <p className="text-white font-bold text-sm leading-tight">AmbuQuick</p>
