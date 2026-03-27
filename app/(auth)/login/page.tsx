@@ -59,7 +59,7 @@ export default function LoginPage() {
 
           {/* Tagline */}
           <h1 className="text-white text-4xl xl:text-5xl font-bold leading-tight mb-5">
-            18 minutes.<br />Every time.
+            Emergency Response.<br />Reimagined.
           </h1>
           <p className="text-red-200 text-sm leading-relaxed mb-10">
             India's most reliable ambulance dispatch network, purpose-built for hospital partners who demand speed and accountability.

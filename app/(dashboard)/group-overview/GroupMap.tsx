@@ -39,7 +39,7 @@ function createPin(color: string) {
   }
 }
 
-const MAP_CENTER = { lat: 28.2, lng: 78.5 }
+const MAP_CENTER = { lat: 28.5, lng: 79.5 }
 
 export default function GroupMap() {
   const [active, setActive] = useState<Unit | null>(null)
@@ -71,7 +71,7 @@ export default function GroupMap() {
     <GoogleMap
       mapContainerStyle={{ width: '100%', height: '100%', borderRadius: '12px' }}
       center={MAP_CENTER}
-      zoom={7}
+      zoom={6}
       options={{
         disableDefaultUI: true,
         zoomControl: true,
