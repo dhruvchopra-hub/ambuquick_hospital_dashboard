@@ -4,11 +4,92 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Ambulance } from '@/types'
 import { toast } from 'sonner'
-import { Truck, Plus, Edit2, Loader2, X, CheckCircle, Shield, Building2, Link2, KeyRound, Calendar, Wrench } from 'lucide-react'
+import { Truck, Plus, Edit2, Loader2, X, CheckCircle, Shield, Building2, Link2, KeyRound, Calendar, Wrench, BarChart2, Star, Award } from 'lucide-react'
 import { format, differenceInDays, parseISO } from 'date-fns'
 
 const STATUSES = ['available', 'on_trip', 'maintenance', 'offline'] as const
 type Status = typeof STATUSES[number]
+
+interface DriverScore {
+  overall: number
+  onTime: number
+  rating: number
+  safety: number
+  flags: string[]
+  trend: number[] // last 6 months scores
+  recentRides: { id: string; date: string; onTime: boolean; rating: number; notes?: string }[]
+}
+
+const DRIVER_SCORES: Record<string, DriverScore> = {
+  'Rajesh Kumar': {
+    overall: 87, onTime: 91, rating: 4.6, safety: 88,
+    flags: [],
+    trend: [79, 82, 84, 83, 86, 87],
+    recentRides: [
+      { id: 'A1B2C3D4', date: '25 Mar', onTime: true,  rating: 5, notes: '' },
+      { id: 'E5F6G7H8', date: '23 Mar', onTime: true,  rating: 5 },
+      { id: 'I9J0K1L2', date: '21 Mar', onTime: false, rating: 4, notes: 'Traffic delay — NH-48' },
+      { id: 'M3N4O5P6', date: '20 Mar', onTime: true,  rating: 5 },
+      { id: 'Q7R8S9T0', date: '18 Mar', onTime: true,  rating: 4 },
+      { id: 'U1V2W3X4', date: '15 Mar', onTime: true,  rating: 5 },
+      { id: 'Y5Z6A7B8', date: '13 Mar', onTime: true,  rating: 5 },
+      { id: 'C9D0E1F2', date: '11 Mar', onTime: true,  rating: 4 },
+      { id: 'G3H4I5J6', date: '09 Mar', onTime: true,  rating: 5 },
+      { id: 'K7L8M9N0', date: '07 Mar', onTime: false, rating: 4, notes: 'Road closed — Rohini bypass' },
+    ],
+  },
+  'Sunil Sharma': {
+    overall: 74, onTime: 78, rating: 4.1, safety: 75,
+    flags: ['2 late arrivals this week'],
+    trend: [71, 72, 76, 74, 75, 74],
+    recentRides: [
+      { id: 'P1Q2R3S4', date: '25 Mar', onTime: false, rating: 3, notes: 'Late — 22 min response' },
+      { id: 'T5U6V7W8', date: '24 Mar', onTime: false, rating: 4, notes: 'Late — traffic Janakpuri' },
+      { id: 'X9Y0Z1A2', date: '22 Mar', onTime: true,  rating: 4 },
+      { id: 'B3C4D5E6', date: '20 Mar', onTime: true,  rating: 5 },
+      { id: 'F7G8H9I0', date: '18 Mar', onTime: true,  rating: 4 },
+      { id: 'J1K2L3M4', date: '17 Mar', onTime: false, rating: 3, notes: 'Speed compliance warning' },
+      { id: 'N5O6P7Q8', date: '15 Mar', onTime: true,  rating: 4 },
+      { id: 'R9S0T1U2', date: '13 Mar', onTime: true,  rating: 5 },
+      { id: 'V3W4X5Y6', date: '11 Mar', onTime: true,  rating: 4 },
+      { id: 'Z7A8B9C0', date: '09 Mar', onTime: true,  rating: 4 },
+    ],
+  },
+  'Amit Verma': {
+    overall: 82, onTime: 85, rating: 4.4, safety: 80,
+    flags: [],
+    trend: [76, 78, 80, 81, 82, 82],
+    recentRides: [
+      { id: 'D1E2F3G4', date: '25 Mar', onTime: true,  rating: 5 },
+      { id: 'H5I6J7K8', date: '23 Mar', onTime: true,  rating: 4 },
+      { id: 'L9M0N1O2', date: '21 Mar', onTime: true,  rating: 5 },
+      { id: 'P3Q4R5S6', date: '19 Mar', onTime: false, rating: 4, notes: 'Minor delay — Dwarka flyover' },
+      { id: 'T7U8V9W0', date: '17 Mar', onTime: true,  rating: 4 },
+      { id: 'X1Y2Z3A4', date: '15 Mar', onTime: true,  rating: 5 },
+      { id: 'B5C6D7E8', date: '13 Mar', onTime: true,  rating: 5 },
+      { id: 'F9G0H1I2', date: '11 Mar', onTime: true,  rating: 4 },
+      { id: 'J3K4L5M6', date: '09 Mar', onTime: true,  rating: 5 },
+      { id: 'N7O8P9Q0', date: '07 Mar', onTime: true,  rating: 4 },
+    ],
+  },
+  'Pradeep Singh': {
+    overall: 69, onTime: 72, rating: 3.9, safety: 68,
+    flags: ['1 SLA breach this month', 'Speed compliance warning'],
+    trend: [72, 70, 68, 71, 70, 69],
+    recentRides: [
+      { id: 'R1S2T3U4', date: '24 Mar', onTime: false, rating: 3, notes: 'SLA breach — 24 min response' },
+      { id: 'V5W6X7Y8', date: '22 Mar', onTime: false, rating: 4 },
+      { id: 'Z9A0B1C2', date: '20 Mar', onTime: true,  rating: 4 },
+      { id: 'D3E4F5G6', date: '18 Mar', onTime: false, rating: 3, notes: 'Speed warning flagged' },
+      { id: 'H7I8J9K0', date: '16 Mar', onTime: true,  rating: 4 },
+      { id: 'L1M2N3O4', date: '14 Mar', onTime: true,  rating: 4 },
+      { id: 'P5Q6R7S8', date: '12 Mar', onTime: false, rating: 3 },
+      { id: 'T9U0V1W2', date: '10 Mar', onTime: true,  rating: 5 },
+      { id: 'X3Y4Z5A6', date: '08 Mar', onTime: true,  rating: 4 },
+      { id: 'B7C8D9E0', date: '06 Mar', onTime: true,  rating: 4 },
+    ],
+  },
+}
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -43,6 +124,7 @@ export default function FleetPage() {
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState<'ambuquick' | 'hospital'>('ambuquick')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [perfAmb, setPerfAmb] = useState<(Ambulance & { driver_pin?: string }) | null>(null)
 
   const copyDriverLink = (amb: Ambulance) => {
     navigator.clipboard.writeText(`${window.location.origin}/driver/${amb.id}`)
@@ -113,6 +195,25 @@ export default function FleetPage() {
 
   const ambuquickFleet = ambulances.filter(a => !a.is_hospital_fleet)
   const hospitalFleet = ambulances.filter(a => a.is_hospital_fleet)
+
+  function Sparkline({ data }: { data: number[] }) {
+    const min = Math.min(...data)
+    const max = Math.max(...data)
+    const range = max - min || 1
+    const w = 80, h = 28, pad = 3
+    const pts = data.map((v, i) => {
+      const x = pad + (i / (data.length - 1)) * (w - pad * 2)
+      const y = h - pad - ((v - min) / range) * (h - pad * 2)
+      return `${x},${y}`
+    }).join(' ')
+    const last = data[data.length - 1]
+    const trend = last >= data[0]
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
+        <polyline points={pts} fill="none" stroke={trend ? '#16a34a' : '#dc2626'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
 
   const VehicleCard = ({ amb, editable }: { amb: Ambulance & { driver_pin?: string; _optimistic?: boolean }; editable: boolean }) => (
     <div className={`bg-white rounded-2xl border shadow-sm p-5 transition-opacity ${
@@ -191,6 +292,62 @@ export default function FleetPage() {
           )
         })()}
       </div>
+
+      {/* Driver Performance Score */}
+      {(() => {
+        const score = DRIVER_SCORES[amb.driver_name]
+        if (!score) return null
+        const scoreColor = score.overall >= 80 ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+          : score.overall >= 60 ? 'text-amber-600 bg-amber-50 border-amber-200'
+          : 'text-red-600 bg-red-50 border-red-200'
+        return (
+          <div className="border-t border-ambu-border mt-3 pt-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-ambu-dark flex items-center gap-1">
+                <Award className="w-3.5 h-3.5 text-ambu-red" /> Driver Score
+              </span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${scoreColor}`}>
+                {score.overall}/100
+              </span>
+            </div>
+            {[
+              { label: 'On-Time Rate', value: score.onTime, suffix: '%' },
+              { label: 'Patient Rating', value: Math.round(score.rating * 20), suffix: `${score.rating}★` },
+              { label: 'Safety Score', value: score.safety, suffix: `${score.safety}%` },
+            ].map(sub => (
+              <div key={sub.label}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-ambu-muted">{sub.label}</span>
+                  <span className="font-medium text-ambu-dark">{sub.suffix}</span>
+                </div>
+                <div className="h-1.5 bg-ambu-border rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      sub.value >= 80 ? 'bg-emerald-500' : sub.value >= 60 ? 'bg-amber-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${sub.value}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            {score.flags.length > 0 && (
+              <div className="space-y-1">
+                {score.flags.map(flag => (
+                  <p key={flag} className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                    ⚠ {flag}
+                  </p>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setPerfAmb(amb)}
+              className="w-full text-xs font-medium text-ambu-red border border-ambu-red/30 bg-red-50/50 hover:bg-red-50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5"
+            >
+              <BarChart2 className="w-3.5 h-3.5" /> View Full Report
+            </button>
+          </div>
+        )
+      })()}
     </div>
   )
 
@@ -292,6 +449,109 @@ export default function FleetPage() {
       )}
 
       {/* Modal */}
+      {/* Performance Report Modal */}
+      {perfAmb && (() => {
+        const score = DRIVER_SCORES[perfAmb.driver_name]
+        if (!score) return null
+        const scoreColor = score.overall >= 80 ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+          : score.overall >= 60 ? 'text-amber-600 bg-amber-50 border-amber-200'
+          : 'text-red-600 bg-red-50 border-red-200'
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-ambu-border px-6 py-4 flex items-center justify-between rounded-t-2xl">
+                <div>
+                  <h2 className="text-lg font-bold text-ambu-dark flex items-center gap-2">
+                    <Award className="w-5 h-5 text-ambu-red" /> Driver Performance Report
+                  </h2>
+                  <p className="text-xs text-ambu-muted mt-0.5">{perfAmb.driver_name} · {perfAmb.code}</p>
+                </div>
+                <button onClick={() => setPerfAmb(null)} className="text-ambu-muted hover:text-ambu-dark">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {/* Overall + Trend */}
+                <div className="flex items-center justify-between gap-4 bg-ambu-bg rounded-xl p-4">
+                  <div>
+                    <p className="text-xs text-ambu-muted mb-1">Overall Score</p>
+                    <span className={`text-3xl font-bold px-3 py-1 rounded-xl border ${scoreColor}`}>
+                      {score.overall}<span className="text-base font-normal">/100</span>
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-ambu-muted mb-1">6-Month Trend</p>
+                    <Sparkline data={score.trend} />
+                    <p className="text-xs text-ambu-muted mt-0.5">
+                      {score.trend[0]} → {score.trend[score.trend.length - 1]}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sub-scores */}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-ambu-dark uppercase tracking-wide">Performance Breakdown</p>
+                  {[
+                    { label: 'On-Time Rate', value: score.onTime, display: `${score.onTime}%` },
+                    { label: 'Patient Rating', value: Math.round(score.rating * 20), display: `${score.rating} / 5.0 ★` },
+                    { label: 'Safety Score', value: score.safety, display: `${score.safety}%` },
+                  ].map(sub => (
+                    <div key={sub.label}>
+                      <div className="flex justify-between text-xs mb-1.5">
+                        <span className="text-ambu-muted font-medium">{sub.label}</span>
+                        <span className="font-bold text-ambu-dark">{sub.display}</span>
+                      </div>
+                      <div className="h-2 bg-ambu-border rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${sub.value >= 80 ? 'bg-emerald-500' : sub.value >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                          style={{ width: `${sub.value}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Flags */}
+                {score.flags.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-ambu-dark uppercase tracking-wide">Active Flags</p>
+                    {score.flags.map(flag => (
+                      <p key={flag} className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        ⚠ {flag}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Last 10 rides */}
+                <div>
+                  <p className="text-xs font-semibold text-ambu-dark uppercase tracking-wide mb-2">Last 10 Rides</p>
+                  <div className="space-y-1.5">
+                    {score.recentRides.map(r => (
+                      <div key={r.id} className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 border text-xs ${
+                        r.onTime ? 'bg-emerald-50/50 border-emerald-100' : 'bg-red-50/50 border-red-100'
+                      }`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${r.onTime ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                          <span className="font-mono text-ambu-muted">#{r.id.substring(0, 8).toUpperCase()}</span>
+                          <span className="text-ambu-muted">{r.date}</span>
+                          {r.notes && <span className="text-ambu-muted truncate">· {r.notes}</span>}
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                          <span className="font-semibold text-ambu-dark">{r.rating}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {modal.open && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto">

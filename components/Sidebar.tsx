@@ -7,10 +7,12 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, PlusCircle, MapPin, Clock, Truck,
   FileText, BarChart3, LogOut, Menu, X, Settings,
+  Building2, BrainCircuit,
 } from 'lucide-react'
 import { useState } from 'react'
 
 const navItems = [
+  { href: '/group-overview', label: 'Group Overview', icon: Building2 },
   { href: '/', label: 'Overview', icon: LayoutDashboard },
   { href: '/book', label: 'Book Ambulance', icon: PlusCircle },
   { href: '/tracking', label: 'Live Tracking', icon: MapPin },
@@ -18,14 +20,16 @@ const navItems = [
   { href: '/fleet', label: 'Fleet Manager', icon: Truck },
   { href: '/invoices', label: 'Invoices', icon: FileText },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/demand-forecast', label: 'Demand Forecast', icon: BrainCircuit },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 interface SidebarProps {
   hospitalName: string
+  breachCount?: number
 }
 
-export default function Sidebar({ hospitalName }: SidebarProps) {
+export default function Sidebar({ hospitalName, breachCount = 0 }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -56,6 +60,7 @@ export default function Sidebar({ hospitalName }: SidebarProps) {
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href
+          const showBadge = href === '/' && breachCount > 0
           return (
             <Link
               key={href}
@@ -68,7 +73,12 @@ export default function Sidebar({ hospitalName }: SidebarProps) {
               }`}
             >
               <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-              <span>{label}</span>
+              <span className="flex-1">{label}</span>
+              {showBadge && (
+                <span className="w-5 h-5 rounded-full bg-ambu-red text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 animate-pulse">
+                  {breachCount}
+                </span>
+              )}
             </Link>
           )
         })}

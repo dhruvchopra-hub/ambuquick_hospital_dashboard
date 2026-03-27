@@ -114,8 +114,9 @@ export default function OverviewPage() {
   }
 
   const slaBreaches = recentRides.filter(r => {
-    if (r.status !== 'dispatched' || dismissedAlerts.includes(r.id)) return false
-    return (Date.now() - new Date(r.created_at).getTime()) / 60000 > 10
+    if (!['dispatched', 'en_route'].includes(r.status) || dismissedAlerts.includes(r.id)) return false
+    const elapsed = (Date.now() - new Date(r.created_at).getTime()) / 60000
+    return elapsed >= 13 // warn at 13 min (5 min before 18-min SLA)
   })
 
   const activeAmbulances = ambulances.filter(a => ['available', 'on_trip'].includes(a.status)).length
@@ -159,23 +160,41 @@ export default function OverviewPage() {
   return (
     <div className="p-5 lg:p-7 space-y-5 pb-24">
       {/* SLA Breach Alerts */}
-      {slaBreaches.map(ride => (
-        <div key={ride.id} className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <AlertTriangle className="w-4 h-4 text-ambu-red flex-shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-red-900">SLA Breach — {ride.patient_name}</p>
-            <p className="text-xs text-red-700 mt-0.5">
-              Dispatched {Math.floor((Date.now() - new Date(ride.created_at).getTime()) / 60000)} minutes ago. Expected response ≤ 10 min.
-            </p>
-          </div>
-          <button
-            onClick={() => setDismissedAlerts(prev => [...prev, ride.id])}
-            className="text-red-400 hover:text-red-600 flex-shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
+      {!loading && slaBreaches.length === 0 && activeRides.length > 0 && (
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+          <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <p className="text-sm font-semibold text-emerald-800">All Active Rides Within SLA</p>
+          <span className="ml-auto text-xs text-emerald-600">{activeRides.length} active</span>
         </div>
-      ))}
+      )}
+      {slaBreaches.map(ride => {
+        const elapsed = Math.floor((Date.now() - new Date(ride.created_at).getTime()) / 60000)
+        const minsLeft = 18 - elapsed
+        const ambulanceCode = ambulances.find(a => a.id === ride.ambulance_id)?.code || '—'
+        return (
+          <div
+            key={ride.id}
+            className="flex items-start gap-3 bg-red-50 border-2 border-red-300 rounded-xl px-4 py-3 shadow-sm"
+            style={{ animation: 'pulse 2s ease-in-out infinite' }}
+          >
+            <AlertTriangle className="w-5 h-5 text-ambu-red flex-shrink-0 mt-0.5 animate-pulse" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-red-900">
+                ⚠️ SLA Breach Risk — {ambulanceCode} is {minsLeft > 0 ? `${minsLeft} min${minsLeft !== 1 ? 's' : ''} from SLA breach` : 'past SLA target'} on Ride #{ride.id.substring(0, 8).toUpperCase()}
+              </p>
+              <p className="text-xs text-red-700 mt-0.5">
+                {ride.patient_name} · {ride.pickup_location} · Elapsed: {elapsed} min · SLA target: 18 min
+              </p>
+            </div>
+            <button
+              onClick={() => setDismissedAlerts(prev => [...prev, ride.id])}
+              className="text-red-400 hover:text-red-600 flex-shrink-0 mt-0.5"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )
+      })}
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">

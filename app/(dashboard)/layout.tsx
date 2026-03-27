@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
@@ -13,6 +13,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [hospitalName, setHospitalName] = useState('')
   const [userEmail, setUserEmail] = useState('')
   const [now, setNow] = useState(new Date())
+  const [breachCount, setBreachCount] = useState(0)
+
+  const checkBreaches = useCallback(async () => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('rides')
+      .select('id, created_at, status')
+      .in('status', ['dispatched', 'en_route'])
+    if (data) {
+      const count = data.filter(r => {
+        const elapsed = (Date.now() - new Date(r.created_at).getTime()) / 60000
+        return elapsed >= 13
+      }).length
+      setBreachCount(count)
+    }
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -53,19 +69,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     })
 
     const timer = setInterval(() => setNow(new Date()), 60000)
+    checkBreaches()
+    const breachTimer = setInterval(checkBreaches, 30000)
 
     return () => {
       subscription.unsubscribe()
       supabase.removeChannel(notifChannel)
       clearInterval(timer)
+      clearInterval(breachTimer)
     }
-  }, [router])
+  }, [router, checkBreaches])
 
   const initials = userEmail?.[0]?.toUpperCase() || 'U'
 
   return (
     <div className="min-h-screen bg-ambu-bg">
-      <Sidebar hospitalName={hospitalName} />
+      <Sidebar hospitalName={hospitalName} breachCount={breachCount} />
 
       {/* Top bar */}
       <header className="fixed top-0 right-0 left-0 lg:left-60 z-20 bg-white border-b border-ambu-border h-14 flex items-center px-4 lg:px-6 justify-between">
@@ -75,8 +94,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="text-xs text-ambu-muted">{format(now, 'EEEE, d MMMM yyyy')}</span>
         </div>
         <div className="flex items-center gap-3 ml-auto">
-          <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ambu-bg transition-colors text-ambu-muted hover:text-ambu-dark">
+          <button className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ambu-bg transition-colors text-ambu-muted hover:text-ambu-dark">
             <Bell className="w-4 h-4" />
+            {breachCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-ambu-red text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+                {breachCount}
+              </span>
+            )}
           </button>
           <div className="w-8 h-8 rounded-full bg-ambu-red flex items-center justify-center">
             <span className="text-white text-xs font-bold">{initials}</span>
