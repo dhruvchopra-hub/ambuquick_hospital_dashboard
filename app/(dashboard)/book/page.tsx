@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useJsApiLoader, type Libraries } from '@react-google-maps/api'
+import { useJsApiLoader } from '@react-google-maps/api'
 import { createClient } from '@/lib/supabase/client'
-
-const LIBRARIES: Libraries = ['places']
 import { Ambulance } from '@/types'
 import { toast } from 'sonner'
 import { Loader2, User, Phone, MapPin, Navigation, Zap, Clock, Calendar, CheckCircle2, X, PlusCircle } from 'lucide-react'
@@ -57,7 +55,6 @@ export default function BookAmbulancePage() {
   const { isLoaded: mapsLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries: LIBRARIES,
   })
   const pickupRef = useRef<HTMLInputElement>(null)
   const destRef = useRef<HTMLInputElement>(null)

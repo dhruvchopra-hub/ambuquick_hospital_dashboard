@@ -1,8 +1,6 @@
 'use client'
 
-import { useJsApiLoader, GoogleMap, Marker, InfoWindow, type Libraries } from '@react-google-maps/api'
-
-const LIBRARIES: Libraries = ['places']
+import { useJsApiLoader, GoogleMap, Marker, InfoWindow } from '@react-google-maps/api'
 import { useState } from 'react'
 
 interface Unit {
@@ -48,7 +46,6 @@ export default function GroupMap() {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries: LIBRARIES,
   })
 
   if (loadError) {

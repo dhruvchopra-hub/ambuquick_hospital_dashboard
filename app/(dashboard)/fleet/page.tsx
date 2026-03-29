@@ -115,6 +115,17 @@ function Skeleton({ className }: { className?: string }) {
 interface VehicleModal { open: boolean; mode: 'add' | 'edit'; ambulance: Partial<Ambulance & { driver_pin?: string }> | null }
 const emptyForm = { code: '', type: 'BLS', driver_name: '', driver_phone: '', status: 'available' as Status, driver_pin: '0000' }
 
+// Shape returned from driver_scores table
+interface LiveDriverScore {
+  driver_id:         string
+  ambulance_code:    string
+  overall_score:     number
+  on_time_rate:      number
+  patient_rating:    number
+  safety_score:      number
+  total_trips:       number
+}
+
 export default function FleetPage() {
   const [ambulances, setAmbulances] = useState<(Ambulance & { driver_pin?: string; _optimistic?: boolean })[]>([])
   const [hospitalId, setHospitalId] = useState('')
@@ -125,6 +136,8 @@ export default function FleetPage() {
   const [tab, setTab] = useState<'ambuquick' | 'hospital'>('ambuquick')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [perfAmb, setPerfAmb] = useState<(Ambulance & { driver_pin?: string }) | null>(null)
+  // Real driver scores loaded from Supabase (keyed by ambulance_code)
+  const [liveScores, setLiveScores] = useState<Record<string, LiveDriverScore>>({})
 
   const copyDriverLink = (amb: Ambulance) => {
     navigator.clipboard.writeText(`${window.location.origin}/driver/${amb.id}`)
@@ -139,12 +152,34 @@ export default function FleetPage() {
     setLoading(false)
   }
 
+  const fetchScores = async (supabase: ReturnType<typeof createClient>) => {
+    const { data } = await supabase
+      .from('driver_scores')
+      .select('driver_id, ambulance_code, overall_score, on_time_rate, patient_rating, safety_score, total_trips')
+    if (data) {
+      const map: Record<string, LiveDriverScore> = {}
+      for (const row of data as LiveDriverScore[]) {
+        if (row.ambulance_code) map[row.ambulance_code] = row
+      }
+      setLiveScores(map)
+    }
+  }
+
   useEffect(() => {
     const supabase = createClient()
     async function init() {
       const { data: profile } = await supabase.from('user_profiles').select('hospital_id').single()
       if (profile?.hospital_id) setHospitalId(profile.hospital_id)
-      await fetchData(supabase)
+      await Promise.all([fetchData(supabase), fetchScores(supabase)])
+
+      // Subscribe to driver_scores changes
+      const channel = supabase
+        .channel('driver-scores-updates')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_scores' }, () => {
+          fetchScores(supabase)
+        })
+        .subscribe()
+      return () => { supabase.removeChannel(channel) }
     }
     init()
   }, [])
@@ -295,7 +330,17 @@ export default function FleetPage() {
 
       {/* Driver Performance Score */}
       {(() => {
-        const score = DRIVER_SCORES[amb.driver_name]
+        const live = liveScores[amb.code]
+        const base = DRIVER_SCORES[amb.driver_name]
+        const score = live ? {
+          overall: live.overall_score,
+          onTime: live.on_time_rate,
+          rating: live.patient_rating,
+          safety: live.safety_score,
+          flags: base?.flags ?? [],
+          trend: base?.trend ?? [live.overall_score],
+          recentRides: base?.recentRides ?? [],
+        } : base
         if (!score) return null
         const scoreColor = score.overall >= 80 ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
           : score.overall >= 60 ? 'text-amber-600 bg-amber-50 border-amber-200'
@@ -451,7 +496,17 @@ export default function FleetPage() {
       {/* Modal */}
       {/* Performance Report Modal */}
       {perfAmb && (() => {
-        const score = DRIVER_SCORES[perfAmb.driver_name]
+        const live = liveScores[perfAmb.code]
+        const base = DRIVER_SCORES[perfAmb.driver_name]
+        const score = live ? {
+          overall: live.overall_score,
+          onTime: live.on_time_rate,
+          rating: live.patient_rating,
+          safety: live.safety_score,
+          flags: base?.flags ?? [],
+          trend: base?.trend ?? [live.overall_score],
+          recentRides: base?.recentRides ?? [],
+        } : base
         if (!score) return null
         const scoreColor = score.overall >= 80 ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
           : score.overall >= 60 ? 'text-amber-600 bg-amber-50 border-amber-200'

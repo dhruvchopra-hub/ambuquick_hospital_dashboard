@@ -1,9 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useJsApiLoader, type Libraries } from '@react-google-maps/api'
-
-const LIBRARIES: Libraries = ['places']
+import { useJsApiLoader } from '@react-google-maps/api'
 import { Ambulance, Ride } from '@/types'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -61,7 +59,6 @@ export default function MapComponent({ ambulances, rides, selected, onSelect }: 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: apiKey,
-    libraries: LIBRARIES,
   })
 
   const containerRef = useRef<HTMLDivElement>(null)
