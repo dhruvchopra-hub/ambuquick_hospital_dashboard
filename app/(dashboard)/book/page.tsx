@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useJsApiLoader, type Libraries } from '@react-google-maps/api'
 import { createClient } from '@/lib/supabase/client'
+
+const LIBRARIES: Libraries = ['places']
 import { Ambulance } from '@/types'
 import { toast } from 'sonner'
 import { Loader2, User, Phone, MapPin, Navigation, Zap, Clock, Calendar, CheckCircle2, X, PlusCircle } from 'lucide-react'
@@ -51,6 +54,13 @@ function Skeleton({ className }: { className?: string }) {
 
 export default function BookAmbulancePage() {
   const router = useRouter()
+  const { isLoaded: mapsLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: LIBRARIES,
+  })
+  const pickupRef = useRef<HTMLInputElement>(null)
+  const destRef = useRef<HTMLInputElement>(null)
   const [hospitalId, setHospitalId] = useState('')
   const [ambulances, setAmbulances] = useState<Ambulance[]>([])
   const [ambLoading, setAmbLoading] = useState(true)
@@ -82,6 +92,35 @@ export default function BookAmbulancePage() {
     }
     init()
   }, [])
+
+  // Attach Google Places Autocomplete to pickup + destination inputs
+  useEffect(() => {
+    if (!mapsLoaded) return
+    const opts: google.maps.places.AutocompleteOptions = {
+      componentRestrictions: { country: 'in' },
+      fields: ['formatted_address'],
+    }
+    if (pickupRef.current) {
+      const ac = new window.google.maps.places.Autocomplete(pickupRef.current, opts)
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace()
+        if (place.formatted_address) {
+          setForm(prev => ({ ...prev, pickup_location: place.formatted_address! }))
+          setErrors(prev => { const n = { ...prev }; delete n.pickup_location; return n })
+        }
+      })
+    }
+    if (destRef.current) {
+      const ac = new window.google.maps.places.Autocomplete(destRef.current, opts)
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace()
+        if (place.formatted_address) {
+          setForm(prev => ({ ...prev, destination: place.formatted_address! }))
+          setErrors(prev => { const n = { ...prev }; delete n.destination; return n })
+        }
+      })
+    }
+  }, [mapsLoaded])
 
   const f = (field: keyof typeof form, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -118,7 +157,7 @@ export default function BookAmbulancePage() {
     const eta = urgencyConfig.eta
     const amount = urgencyConfig.price
 
-    await supabase.from('rides').insert({
+    const { data: rideRow } = await supabase.from('rides').insert({
       hospital_id: hospitalId,
       patient_name: form.patient_name,
       patient_phone: form.patient_phone,
@@ -133,10 +172,28 @@ export default function BookAmbulancePage() {
       status: 'dispatched',
       amount,
       response_time_minutes: null,
-    })
+    }).select('id').single()
 
     if (selectedAmb) {
       await supabase.from('ambulances').update({ status: 'on_trip' }).eq('id', form.ambulance_id)
+
+      // Send Expo push notification to driver
+      const pushToken = (selectedAmb as Ambulance & { expo_push_token?: string }).expo_push_token
+      if (pushToken) {
+        fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: pushToken,
+            title: `🚨 New Ride — ${form.urgency.toUpperCase()}`,
+            body: `${form.patient_name} · ${form.pickup_location} → ${form.destination}`,
+            data: { rideDbId: rideRow?.id ?? '' },
+            sound: 'default',
+            priority: 'high',
+          }),
+        }).catch(() => {})
+      }
+
       setDispatched({ driverName: selectedAmb.driver_name, vehicleCode: selectedAmb.code, eta })
       setForm({ patient_name: '', patient_phone: '', patient_age: '', patient_gender: '', pickup_location: '', destination: '', chief_complaint: '', urgency: 'Urgent', ambulance_id: '' })
       await loadAmbs(supabase)
@@ -232,9 +289,11 @@ export default function BookAmbulancePage() {
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ambu-muted" />
               <input
+                ref={pickupRef}
                 type="text" value={form.pickup_location}
                 onChange={e => f('pickup_location', e.target.value)}
                 placeholder="e.g. Sector 15, Rohini, Delhi"
+                autoComplete="off"
                 className={`${inputCls(errors.pickup_location)} pl-9`}
               />
             </div>
@@ -245,9 +304,11 @@ export default function BookAmbulancePage() {
             <div className="relative">
               <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ambu-muted" />
               <input
+                ref={destRef}
                 type="text" value={form.destination}
                 onChange={e => f('destination', e.target.value)}
                 placeholder="e.g. Ujala Cygnus Hospital"
+                autoComplete="off"
                 className={`${inputCls(errors.destination)} pl-9`}
               />
             </div>

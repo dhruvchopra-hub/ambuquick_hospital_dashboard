@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useJsApiLoader, GoogleMap, Circle, InfoWindow } from '@react-google-maps/api'
+import { useJsApiLoader, GoogleMap, Circle, InfoWindow, type Libraries } from '@react-google-maps/api'
+
+const LIBRARIES: Libraries = ['places']
 import { useState } from 'react'
 
 const ZONES = [
@@ -17,8 +19,9 @@ const MAP_CENTER = { lat: 28.6550, lng: 77.0850 }
 export default function ForecastMap() {
   const [activeZone, setActiveZone] = useState<typeof ZONES[0] | null>(null)
   const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    id: 'google-map-script-forecast',
+    libraries: LIBRARIES,
   })
 
   if (loadError) {
