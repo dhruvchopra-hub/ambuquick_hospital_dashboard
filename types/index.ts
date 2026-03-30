@@ -5,6 +5,9 @@ export interface Hospital {
   email: string
   city: string
   partner_since: string
+  slug?: string
+  logo_url?: string
+  primary_color?: string
   created_at: string
 }
 
@@ -43,6 +46,8 @@ export interface Ride {
   status: 'pending' | 'dispatched' | 'en_route' | 'completed' | 'cancelled'
   response_time_minutes: number | null
   amount: number
+  tracking_token?: string
+  whatsapp_sent?: boolean
   created_at: string
 }
 

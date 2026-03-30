@@ -59,11 +59,16 @@ export default function BookAmbulancePage() {
   const pickupRef = useRef<HTMLInputElement>(null)
   const destRef = useRef<HTMLInputElement>(null)
   const [hospitalId, setHospitalId] = useState('')
+  const [hospitalSlug, setHospitalSlug] = useState('')
+  const [hospitalName, setHospitalName] = useState('')
   const [ambulances, setAmbulances] = useState<Ambulance[]>([])
   const [ambLoading, setAmbLoading] = useState(true)
   const [loading, setLoading] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [dispatched, setDispatched] = useState<{ driverName: string; vehicleCode: string; eta: number } | null>(null)
+  const [dispatched, setDispatched] = useState<{
+    driverName: string; vehicleCode: string; eta: number
+    trackingToken: string; patientPhone: string; whatsappSent: boolean
+  } | null>(null)
   const [form, setForm] = useState({
     patient_name: '', patient_phone: '', patient_age: '', patient_gender: '',
     pickup_location: '', destination: '', chief_complaint: '',
@@ -84,7 +89,19 @@ export default function BookAmbulancePage() {
     const supabase = createClient()
     async function init() {
       const { data: profile } = await supabase.from('user_profiles').select('hospital_id').single()
-      if (profile?.hospital_id) setHospitalId(profile.hospital_id)
+      if (profile?.hospital_id) {
+        setHospitalId(profile.hospital_id)
+        // Fetch hospital name + slug for tracking URL and WhatsApp
+        const { data: hosp } = await supabase
+          .from('hospitals')
+          .select('name, slug')
+          .eq('id', profile.hospital_id)
+          .single()
+        if (hosp) {
+          setHospitalName(hosp.name || '')
+          setHospitalSlug(hosp.slug || '')
+        }
+      }
       await loadAmbs(supabase)
     }
     init()
@@ -169,7 +186,7 @@ export default function BookAmbulancePage() {
       status: 'dispatched',
       amount,
       response_time_minutes: null,
-    }).select('id').single()
+    }).select('id, tracking_token').single()
 
     if (selectedAmb) {
       await supabase.from('ambulances').update({ status: 'on_trip' }).eq('id', form.ambulance_id)
@@ -191,7 +208,37 @@ export default function BookAmbulancePage() {
         }).catch(() => {})
       }
 
-      setDispatched({ driverName: selectedAmb.driver_name, vehicleCode: selectedAmb.code, eta })
+      // Send WhatsApp tracking message to patient's family
+      const trackingToken = rideRow?.tracking_token || ''
+      const trackingUrl = hospitalSlug && trackingToken
+        ? `${window.location.origin}/track/${hospitalSlug}/${trackingToken}`
+        : ''
+      let whatsappSent = false
+      if (trackingUrl && form.patient_phone) {
+        try {
+          const waRes = await fetch('/api/whatsapp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: form.patient_phone,
+              patientName: form.patient_name,
+              hospitalName: hospitalName,
+              driverName: selectedAmb.driver_name,
+              trackingUrl,
+            }),
+          })
+          const waData = await waRes.json()
+          whatsappSent = waData.ok === true
+          if (whatsappSent) {
+            await supabase.from('rides').update({ whatsapp_sent: true }).eq('id', rideRow?.id)
+          }
+        } catch { /* WhatsApp failure is non-fatal */ }
+      }
+
+      setDispatched({
+        driverName: selectedAmb.driver_name, vehicleCode: selectedAmb.code, eta,
+        trackingToken, patientPhone: form.patient_phone, whatsappSent,
+      })
       setForm({ patient_name: '', patient_phone: '', patient_age: '', patient_gender: '', pickup_location: '', destination: '', chief_complaint: '', urgency: 'Urgent', ambulance_id: '' })
       await loadAmbs(supabase)
       toast.success('Ambulance dispatched successfully!')
@@ -455,18 +502,19 @@ export default function BookAmbulancePage() {
       {/* Success Modal */}
       {dispatched && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full relative">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full relative">
             <button onClick={() => setDispatched(null)} className="absolute top-4 right-4 text-ambu-muted hover:text-ambu-dark">
               <X className="w-5 h-5" />
             </button>
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <CheckCircle2 className="w-7 h-7 text-emerald-600" />
               </div>
               <h2 className="text-xl font-bold text-ambu-dark">Ambulance Dispatched!</h2>
               <p className="text-sm text-ambu-muted mt-1">Your request is confirmed</p>
             </div>
-            <div className="space-y-3 bg-ambu-bg rounded-xl p-4">
+
+            <div className="space-y-2.5 bg-ambu-bg rounded-xl p-4 mb-4">
               <div className="flex justify-between text-sm">
                 <span className="text-ambu-muted">Driver</span>
                 <span className="font-bold text-ambu-dark">{dispatched.driverName}</span>
@@ -480,7 +528,37 @@ export default function BookAmbulancePage() {
                 <span className="font-bold text-ambu-red">{dispatched.eta} minutes</span>
               </div>
             </div>
-            <div className="flex gap-3 mt-5">
+
+            {/* WhatsApp status + tracking link */}
+            {dispatched.trackingToken && hospitalSlug && (
+              <div className="mb-4 space-y-2">
+                {dispatched.whatsappSent ? (
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <p className="text-xs text-green-700 font-medium">
+                      WhatsApp tracking link sent to {dispatched.patientPhone.slice(0, 3)}•••{dispatched.patientPhone.slice(-4)}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                    <span className="text-amber-500 text-sm">⚠</span>
+                    <p className="text-xs text-amber-700">WhatsApp not sent — share the link manually</p>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    const url = `${window.location.origin}/track/${hospitalSlug}/${dispatched.trackingToken}`
+                    navigator.clipboard.writeText(url).catch(() => {})
+                    toast.success('Tracking link copied!')
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-ambu-border text-sm font-medium text-ambu-dark hover:bg-ambu-bg transition"
+                >
+                  🔗 Copy Tracking Link
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-3">
               <button
                 onClick={() => setDispatched(null)}
                 className="flex-1 py-2.5 border border-ambu-border rounded-xl text-sm font-medium text-ambu-muted hover:bg-ambu-bg transition"

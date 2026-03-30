@@ -31,8 +31,9 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
   const isApiRoute = request.nextUrl.pathname.startsWith('/api')
   const isDriverPage = request.nextUrl.pathname.startsWith('/driver')
+  const isTrackPage = request.nextUrl.pathname.startsWith('/track')
 
-  if (isApiRoute || isDriverPage) return supabaseResponse
+  if (isApiRoute || isDriverPage || isTrackPage) return supabaseResponse
 
   if (!user && !isAuthPage) {
     return NextResponse.redirect(new URL('/login', request.url))

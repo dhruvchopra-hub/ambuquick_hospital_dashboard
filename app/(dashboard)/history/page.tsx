@@ -60,11 +60,20 @@ export default function RideHistoryPage() {
   const [selectedMonth, setSelectedMonth] = useState('All Time')
   const [search, setSearch] = useState('')
   const [updating, setUpdating] = useState<string | null>(null)
+  const [hospitalSlug, setHospitalSlug] = useState('')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
-    const { data } = await supabase.from('rides').select('*').order('created_at', { ascending: false })
+    const [{ data }, { data: profile }] = await Promise.all([
+      supabase.from('rides').select('*').order('created_at', { ascending: false }),
+      supabase.from('user_profiles').select('hospital_id').single(),
+    ])
     if (data) { setRides(data as Ride[]); setFiltered(data as Ride[]) }
+    if (profile?.hospital_id) {
+      const { data: hosp } = await supabase.from('hospitals').select('slug').eq('id', profile.hospital_id).single()
+      if (hosp?.slug) setHospitalSlug(hosp.slug)
+    }
     setLoading(false)
   }, [])
 
@@ -194,7 +203,7 @@ export default function RideHistoryPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-ambu-border bg-ambu-bg">
-                {['Ride ID', 'Date & Time', 'Patient', 'Type', 'Driver', 'Response', 'Status', 'Amount', 'Actions'].map((h, i) => (
+                {['Ride ID', 'Date & Time', 'Patient', 'Type', 'Driver', 'Response', 'Status', 'Amount', 'Actions', 'Track'].map((h, i) => (
                   <th
                     key={h}
                     className={`px-4 py-3 text-xs font-semibold text-ambu-muted uppercase tracking-wide whitespace-nowrap ${i === 7 ? 'text-right' : 'text-left'}`}
@@ -208,7 +217,7 @@ export default function RideHistoryPage() {
               {loading ? (
                 [...Array(6)].map((_, i) => (
                   <tr key={i}>
-                    {[...Array(9)].map((_, j) => (
+                    {[...Array(10)].map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <Skeleton className="h-4 w-20" />
                       </td>
@@ -217,7 +226,7 @@ export default function RideHistoryPage() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-ambu-muted text-sm">
+                  <td colSpan={10} className="text-center py-12 text-ambu-muted text-sm">
                     No rides found{search ? ` for "${search}"` : selectedMonth !== 'All Time' ? ` in ${selectedMonth}` : ''}
                   </td>
                 </tr>
@@ -277,6 +286,24 @@ export default function RideHistoryPage() {
                             </button>
                           )}
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {ride.tracking_token && hospitalSlug ? (
+                          <button
+                            onClick={() => {
+                              const url = `${window.location.origin}/track/${hospitalSlug}/${ride.tracking_token}`
+                              navigator.clipboard.writeText(url).catch(() => {})
+                              setCopiedId(ride.id)
+                              toast.success('Tracking link copied!')
+                              setTimeout(() => setCopiedId(id => id === ride.id ? null : id), 2000)
+                            }}
+                            className="text-xs px-2.5 py-1 rounded-lg font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition whitespace-nowrap"
+                          >
+                            {copiedId === ride.id ? '✓ Copied!' : '🔗 Track'}
+                          </button>
+                        ) : (
+                          <span className="text-ambu-muted/40 text-xs">—</span>
+                        )}
                       </td>
                     </tr>
                   )
