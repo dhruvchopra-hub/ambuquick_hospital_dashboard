@@ -6,7 +6,7 @@ import { GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLibraries'
 import { createClient } from '@/lib/supabase/client'
 import { Ambulance } from '@/types'
 import { toast } from 'sonner'
-import { Loader2, User, Phone, MapPin, Navigation, Zap, Clock, Calendar, CheckCircle2, X, PlusCircle } from 'lucide-react'
+import { Loader2, User, Phone, MapPin, Navigation, Zap, Clock, Calendar, CheckCircle2, X, PlusCircle, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 const URGENCY_OPTIONS = [
@@ -79,8 +79,42 @@ export default function BookAmbulancePage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number; place_id: string } | null>(null)
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number; place_id: string } | null>(null)
+  const [matchLoading, setMatchLoading] = useState(false)
+  const [bestMatch, setBestMatch] = useState<{
+    id: string; code: string; type: string; driver_name: string; is_hospital_fleet: boolean
+    driveTimeMinutes: number; distanceKm: string; matchScore: number
+    scoreBreakdown: { proximity: number; type: number; rating: number; fatigue: number }
+  } | null>(null)
 
   const urgencyConfig = URGENCY_OPTIONS.find(u => u.key === form.urgency)!
+
+  // Run smart matching whenever we have pickup coords + urgency + hospitalId
+  useEffect(() => {
+    if (!hospitalId || ambulances.length === 0) return
+    setBestMatch(null)
+    setMatchLoading(true)
+    fetch('/api/match-ambulance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pickupLat: pickupCoords?.lat ?? null,
+        pickupLng: pickupCoords?.lng ?? null,
+        urgency: form.urgency,
+        hospitalId,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.scored?.length) {
+          const top = data.scored[0]
+          setBestMatch(top)
+          setForm(prev => ({ ...prev, ambulance_id: top.id }))
+        }
+      })
+      .catch(() => {})
+      .finally(() => setMatchLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupCoords, form.urgency, hospitalId, ambulances.length])
 
   const loadAmbs = async (supabase: ReturnType<typeof createClient>) => {
     setAmbLoading(true)
@@ -268,6 +302,7 @@ export default function BookAmbulancePage() {
       setForm({ patient_name: '', patient_phone: '', patient_age: '', patient_gender: '', pickup_location: '', destination: '', chief_complaint: '', urgency: 'Urgent', ambulance_id: '' })
       setPickupCoords(null)
       setDestCoords(null)
+      setBestMatch(null)
       await loadAmbs(supabase)
       toast.success('Ambulance dispatched successfully!')
     }
@@ -431,6 +466,51 @@ export default function BookAmbulancePage() {
         <div className="bg-white rounded-2xl border border-ambu-border shadow-sm p-6">
           <h2 className="font-semibold text-ambu-dark text-sm uppercase tracking-wide mb-4">Select Ambulance</h2>
           {errors.ambulance_id && <p className="text-ambu-red text-xs mb-3">{errors.ambulance_id}</p>}
+
+          {/* Smart Match card */}
+          {matchLoading && (
+            <div className="mb-4 flex items-center gap-2 text-xs text-ambu-muted bg-ambu-bg rounded-xl px-4 py-3">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Finding best match…
+            </div>
+          )}
+          {!matchLoading && bestMatch && (
+            <div className="mb-4 rounded-xl border-2 border-ambu-red bg-red-50 p-4">
+              <div className="flex items-center gap-1.5 mb-3">
+                <Sparkles className="w-4 h-4 text-ambu-red" />
+                <span className="text-xs font-bold text-ambu-red uppercase tracking-wide">Recommended Ambulance</span>
+              </div>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <div>
+                  <p className="font-bold text-sm text-ambu-dark">{bestMatch.code} · {bestMatch.is_hospital_fleet ? 'Hospital Fleet' : `AmbuQuick ${bestMatch.type}`}</p>
+                  <p className="text-xs text-ambu-muted mt-0.5">Driver: {bestMatch.driver_name}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-lg font-black text-ambu-red">{bestMatch.matchScore}</span>
+                  <span className="text-xs text-ambu-muted">/100</span>
+                </div>
+              </div>
+              <div className="flex gap-3 text-xs text-ambu-muted mb-3">
+                <span>⏱ {bestMatch.driveTimeMinutes} min away</span>
+                {bestMatch.distanceKm !== '—' && <span>📍 {bestMatch.distanceKm} km</span>}
+              </div>
+              <div className="space-y-1.5">
+                {([
+                  { label: 'Proximity', value: bestMatch.scoreBreakdown.proximity },
+                  { label: 'Type Match', value: bestMatch.scoreBreakdown.type },
+                  { label: 'Rating', value: bestMatch.scoreBreakdown.rating },
+                  { label: 'Fatigue', value: bestMatch.scoreBreakdown.fatigue },
+                ] as const).map(({ label, value }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <span className="text-xs text-ambu-muted w-20 shrink-0">{label}</span>
+                    <div className="flex-1 h-1.5 bg-red-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-ambu-red rounded-full" style={{ width: `${value}%` }} />
+                    </div>
+                    <span className="text-xs font-semibold text-ambu-dark w-7 text-right">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {ambLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
