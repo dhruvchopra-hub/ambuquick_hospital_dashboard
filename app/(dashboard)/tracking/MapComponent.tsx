@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useJsApiLoader } from '@react-google-maps/api'
+import { GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLibraries'
 import { Ambulance, Ride } from '@/types'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -59,6 +60,7 @@ export default function MapComponent({ ambulances, rides, selected, onSelect }: 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: apiKey,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   })
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -66,7 +68,7 @@ export default function MapComponent({ ambulances, rides, selected, onSelect }: 
   const markersRef = useRef<Record<string, google.maps.Marker>>({})
   const infoWindowsRef = useRef<Record<string, google.maps.InfoWindow>>({})
   const polylinesRef = useRef<Record<string, google.maps.Polyline>>({})
-  const geocodedRef = useRef<Record<string, { lat: number; lng: number }>>({})
+  const pickupMarkersRef = useRef<Record<string, google.maps.Marker>>({})
 
   // Keep stable refs to props so event listeners never go stale
   const onSelectRef = useRef(onSelect)
@@ -146,37 +148,31 @@ export default function MapComponent({ ambulances, rides, selected, onSelect }: 
         infoWindowsRef.current[amb.id]?.setContent(makeInfoContent(amb, activeRide))
       }
 
-      // Geocode pickup and draw dashed route line for on_trip ambulances
-      if (activeRide) {
-        if (!geocodedRef.current[activeRide.id]) {
-          fetch(
-            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(activeRide.pickup_location + ', India')}&format=json&limit=1`,
-            { headers: { 'User-Agent': 'AmbuQuick/1.0' } }
-          )
-            .then(r => r.json())
-            .then(data => {
-              if (!data[0]) return
-              const pickup = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
-              geocodedRef.current[activeRide.id] = pickup
-              if (amb.status === 'on_trip') {
-                polylinesRef.current[amb.id]?.setMap(null)
-                polylinesRef.current[amb.id] = new window.google.maps.Polyline({
-                  path: [pos, pickup],
-                  map,
-                  strokeColor: '#D91A2A',
-                  strokeWeight: 3,
-                  strokeOpacity: 0,
-                  icons: [{
-                    icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.85, scale: 4, strokeColor: '#D91A2A' },
-                    offset: '0',
-                    repeat: '18px',
-                  }],
-                })
-              }
-            })
-            .catch(() => { /* geocoding failures are non-fatal */ })
-        } else if (amb.status === 'on_trip' && !polylinesRef.current[amb.id]) {
-          const pickup = geocodedRef.current[activeRide.id]
+      // Draw dashed route line + pickup pin for on_trip ambulances
+      if (activeRide && activeRide.pickup_lat && activeRide.pickup_lng) {
+        const pickup = { lat: Number(activeRide.pickup_lat), lng: Number(activeRide.pickup_lng) }
+
+        // Pickup pin marker
+        if (!pickupMarkersRef.current[activeRide.id]) {
+          pickupMarkersRef.current[activeRide.id] = new window.google.maps.Marker({
+            position: pickup,
+            map,
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: 8,
+              fillColor: '#D91A2A',
+              fillOpacity: 1,
+              strokeColor: '#FFFFFF',
+              strokeWeight: 2,
+            },
+            title: activeRide.pickup_location,
+          })
+        } else {
+          pickupMarkersRef.current[activeRide.id].setPosition(pickup)
+        }
+
+        // Dashed route line ambulance → pickup
+        if (!polylinesRef.current[amb.id]) {
           polylinesRef.current[amb.id] = new window.google.maps.Polyline({
             path: [pos, pickup],
             map,
@@ -189,12 +185,18 @@ export default function MapComponent({ ambulances, rides, selected, onSelect }: 
               repeat: '18px',
             }],
           })
+        } else {
+          polylinesRef.current[amb.id].setPath([pos, pickup])
         }
       } else {
-        // No active ride — remove any stale polyline
+        // No active ride with coords — remove any stale polyline + pickup marker
         if (polylinesRef.current[amb.id]) {
           polylinesRef.current[amb.id].setMap(null)
           delete polylinesRef.current[amb.id]
+        }
+        if (activeRide && pickupMarkersRef.current[activeRide.id]) {
+          pickupMarkersRef.current[activeRide.id].setMap(null)
+          delete pickupMarkersRef.current[activeRide.id]
         }
       }
     })

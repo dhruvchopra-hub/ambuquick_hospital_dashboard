@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useJsApiLoader } from '@react-google-maps/api'
+import { GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLibraries'
 import { createClient } from '@/lib/supabase/client'
 import { Ambulance } from '@/types'
 import { toast } from 'sonner'
@@ -55,7 +56,7 @@ export default function BookAmbulancePage() {
   const { isLoaded: mapsLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries: ['places'] as ['places'],
+    libraries: GOOGLE_MAPS_LIBRARIES,
   })
   const pickupRef = useRef<HTMLInputElement>(null)
   const destRef = useRef<HTMLInputElement>(null)

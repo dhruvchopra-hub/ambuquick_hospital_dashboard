@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useJsApiLoader, GoogleMap, Circle, InfoWindow } from '@react-google-maps/api'
+import { GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLibraries'
 import { useState } from 'react'
 
 const ZONES = [
@@ -19,6 +20,7 @@ export default function ForecastMap() {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: GOOGLE_MAPS_LIBRARIES,
   })
 
   if (loadError) {
