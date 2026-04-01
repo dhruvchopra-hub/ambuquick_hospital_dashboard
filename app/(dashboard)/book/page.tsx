@@ -80,18 +80,26 @@ export default function BookAmbulancePage() {
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number; place_id: string } | null>(null)
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number; place_id: string } | null>(null)
   const [matchLoading, setMatchLoading] = useState(false)
-  const [bestMatch, setBestMatch] = useState<{
+  type ScoredAmb = {
     id: string; code: string; type: string; driver_name: string; is_hospital_fleet: boolean
     driveTimeMinutes: number; distanceKm: string; matchScore: number
     scoreBreakdown: { proximity: number; type: number; rating: number; fatigue: number }
-  } | null>(null)
+  }
+  const [scoredList, setScoredList] = useState<ScoredAmb[]>([])
+  const [bestMatch, setBestMatch] = useState<ScoredAmb | null>(null)
+  const [showAllAmbs, setShowAllAmbs] = useState(false)
+  const [manualOverride, setManualOverride] = useState(false)
+  const [overrideReason, setOverrideReason] = useState('')
 
   const urgencyConfig = URGENCY_OPTIONS.find(u => u.key === form.urgency)!
 
-  // Run smart matching whenever we have pickup coords + urgency + hospitalId
+  // Run smart matching whenever pickup coords / urgency / available ambulances change
   useEffect(() => {
     if (!hospitalId || ambulances.length === 0) return
     setBestMatch(null)
+    setScoredList([])
+    setManualOverride(false)
+    setShowAllAmbs(false)
     setMatchLoading(true)
     fetch('/api/match-ambulance', {
       method: 'POST',
@@ -106,9 +114,9 @@ export default function BookAmbulancePage() {
       .then(r => r.json())
       .then(data => {
         if (data.scored?.length) {
-          const top = data.scored[0]
-          setBestMatch(top)
-          setForm(prev => ({ ...prev, ambulance_id: top.id }))
+          setScoredList(data.scored)
+          setBestMatch(data.scored[0])
+          setForm(prev => ({ ...prev, ambulance_id: data.scored[0].id }))
         }
       })
       .catch(() => {})
@@ -243,9 +251,13 @@ export default function BookAmbulancePage() {
       urgency: form.urgency,
       ambulance_id: form.ambulance_id,
       driver_name: selectedAmb?.driver_name || '',
-      status: 'dispatched',
+      status: 'pending',
       amount,
       response_time_minutes: null,
+      assignment_score: bestMatch?.id === form.ambulance_id ? bestMatch.matchScore : null,
+      attempted_ambulance_ids: [form.ambulance_id],
+      manually_overridden: manualOverride,
+      override_reason: manualOverride && overrideReason ? overrideReason : null,
     }).select('id, tracking_token').single()
 
     if (selectedAmb) {
@@ -303,6 +315,10 @@ export default function BookAmbulancePage() {
       setPickupCoords(null)
       setDestCoords(null)
       setBestMatch(null)
+      setScoredList([])
+      setManualOverride(false)
+      setOverrideReason('')
+      setShowAllAmbs(false)
       await loadAmbs(supabase)
       toast.success('Ambulance dispatched successfully!')
     }
@@ -509,6 +525,77 @@ export default function BookAmbulancePage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Manual override list */}
+          {!matchLoading && scoredList.length > 1 && (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => setShowAllAmbs(v => !v)}
+                className="text-xs text-ambu-muted hover:text-ambu-dark underline underline-offset-2"
+              >
+                {showAllAmbs ? 'Hide options' : 'Not the right match? Choose manually'}
+              </button>
+              {showAllAmbs && (
+                <div className="mt-2 space-y-1">
+                  {scoredList.map((s, idx) => (
+                    <button
+                      type="button"
+                      key={s.id}
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, ambulance_id: s.id }))
+                        if (s.id !== bestMatch?.id) {
+                          setManualOverride(true)
+                        } else {
+                          setManualOverride(false)
+                          setOverrideReason('')
+                        }
+                      }}
+                      className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl border text-sm transition ${
+                        form.ambulance_id === s.id
+                          ? 'border-ambu-red bg-red-50'
+                          : 'border-ambu-border hover:border-ambu-muted/40 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {idx === 0 && (
+                          <span className="text-xs bg-ambu-red text-white px-1.5 py-0.5 rounded font-bold shrink-0">TOP</span>
+                        )}
+                        <span className="font-semibold text-ambu-dark truncate">{s.code}</span>
+                        <span className="text-ambu-muted truncate">{s.driver_name}</span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 text-xs text-ambu-muted">
+                        <span className="font-bold text-ambu-dark">{s.matchScore}/100</span>
+                        <span>{s.driveTimeMinutes} min</span>
+                        {s.distanceKm !== '—' && <span>{s.distanceKm} km</span>}
+                      </div>
+                    </button>
+                  ))}
+                  {manualOverride && (
+                    <div className="pt-2">
+                      <p className="text-xs text-ambu-muted mb-1.5">Override reason (optional)</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['Clinical reason', 'Specific request', 'Other'].map(r => (
+                          <button
+                            type="button"
+                            key={r}
+                            onClick={() => setOverrideReason(prev => prev === r ? '' : r)}
+                            className={`text-xs px-3 py-1 rounded-full border transition ${
+                              overrideReason === r
+                                ? 'bg-ambu-dark text-white border-ambu-dark'
+                                : 'border-ambu-border text-ambu-muted hover:border-ambu-muted/60'
+                            }`}
+                          >
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

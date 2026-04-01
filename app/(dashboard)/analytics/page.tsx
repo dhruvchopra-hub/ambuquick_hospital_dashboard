@@ -8,7 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, AreaChart, Area, Cell, PieChart, Pie, Legend,
 } from 'recharts'
-import { BarChart3, TrendingUp, Clock, Target, IndianRupee } from 'lucide-react'
+import { BarChart3, TrendingUp, Clock, Target, IndianRupee, Sparkles } from 'lucide-react'
 
 type Preset = 'week' | 'month' | '3months' | 'all'
 
@@ -299,6 +299,50 @@ export default function AnalyticsPage() {
           </ResponsiveContainer>
         )}
       </ChartCard>
+
+      {/* Smart Matching Performance */}
+      {!loading && (() => {
+        const scoredRides = filtered.filter(r => r.assignment_score != null)
+        const avgScore = scoredRides.length
+          ? Math.round(scoredRides.reduce((s, r) => s + (r.assignment_score ?? 0), 0) / scoredRides.length)
+          : null
+        const overriddenRides = filtered.filter(r => r.manually_overridden)
+        const overrideRate = filtered.length ? Math.round((overriddenRides.length / filtered.length) * 100) : 0
+        const acceptedRides = filtered.filter(r => r.status !== 'pending' && r.status !== 'cancelled' && !r.manually_overridden)
+        const acceptanceRate = filtered.length ? Math.round((acceptedRides.length / filtered.length) * 100) : 0
+        // Most common override reason
+        const reasonCounts: Record<string, number> = {}
+        overriddenRides.forEach(r => { if (r.override_reason) reasonCounts[r.override_reason] = (reasonCounts[r.override_reason] ?? 0) + 1 })
+        const topReason = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
+        const stats = [
+          { label: 'Auto-Accept Rate', value: `${acceptanceRate}%`, sub: 'Rides accepted without override', ok: acceptanceRate >= 75 },
+          { label: 'Avg Match Score', value: avgScore != null ? `${avgScore}/100` : '—', sub: 'Across AI-matched rides', ok: avgScore != null && avgScore >= 70 },
+          { label: 'Override Rate', value: `${overrideRate}%`, sub: 'Staff manually changed driver', ok: overrideRate <= 20 },
+          { label: 'Top Override Reason', value: topReason ?? '—', sub: 'Most common manual override', ok: true },
+        ]
+        return (
+          <div className="bg-white rounded-2xl border border-ambu-border shadow-sm p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="w-4 h-4 text-ambu-red" />
+              <h3 className="font-semibold text-ambu-dark">Smart Matching Performance</h3>
+            </div>
+            <p className="text-xs text-ambu-muted mt-0.5 mb-5">Proves AI assignment is working · {PRESETS.find(p => p.key === preset)?.label}</p>
+            {scoredRides.length === 0 ? (
+              <p className="text-sm text-ambu-muted text-center py-4">No AI-matched rides yet in this period</p>
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {stats.map(s => (
+                  <div key={s.label} className="bg-ambu-bg rounded-xl p-4">
+                    <p className="text-xs text-ambu-muted uppercase tracking-wide font-medium">{s.label}</p>
+                    <p className={`text-xl font-black mt-1 ${s.ok ? 'text-ambu-dark' : 'text-ambu-red'}`}>{s.value}</p>
+                    <p className="text-xs text-ambu-muted mt-1">{s.sub}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* SLA Tracker */}
       <div className="bg-white rounded-2xl border border-ambu-border shadow-sm p-6">

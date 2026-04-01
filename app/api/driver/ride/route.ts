@@ -8,9 +8,9 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabaseAdmin
     .from('rides')
-    .select('patient_name, patient_phone, pickup_location, destination, urgency')
+    .select('id, patient_name, patient_phone, pickup_location, destination, urgency, status, assignment_score')
     .eq('ambulance_id', ambulanceId)
-    .in('status', ['dispatched', 'en_route'])
+    .in('status', ['pending', 'dispatched', 'en_route'])
     .order('created_at', { ascending: false })
     .limit(1)
     .single()

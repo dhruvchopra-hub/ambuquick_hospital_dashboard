@@ -48,6 +48,11 @@ export interface Ride {
   amount: number
   tracking_token?: string
   whatsapp_sent?: boolean
+  assignment_score?: number | null
+  attempted_ambulance_ids?: string[]
+  manually_overridden?: boolean
+  override_reason?: string | null
+  decline_reason?: string | null
   pickup_lat?: number | null
   pickup_lng?: number | null
   pickup_place_id?: string | null

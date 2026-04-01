@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Ride, Ambulance } from '@/types'
@@ -8,7 +8,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
 import {
   Ambulance as AmbulanceIcon, Clock, TrendingUp, IndianRupee,
-  Navigation, CheckCircle, Circle, AlertTriangle, X, Zap,
+  Navigation, CheckCircle, Circle, AlertTriangle, X, Zap, Timer,
 } from 'lucide-react'
 
 const NEXT_STATUS: Record<string, string> = {
@@ -59,6 +59,18 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
+const REASSIGN_TIMEOUT_S = 30
+const MAX_ATTEMPTS = 3
+const OPS_PHONE = '9810001234'
+
+interface CountdownState {
+  secondsLeft: number
+  attemptNumber: number
+  ambulanceCode: string
+  driverName: string
+  status: 'waiting' | 'accepted' | 'declined' | 'exhausted'
+}
+
 export default function OverviewPage() {
   const router = useRouter()
   const [ambulances, setAmbulances] = useState<Ambulance[]>([])
@@ -69,6 +81,10 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
   const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([])
+  // rideId → countdown state
+  const [countdowns, setCountdowns] = useState<Record<string, CountdownState>>({})
+  const timerRefs = useRef<Record<string, NodeJS.Timeout>>({})
+  const reassigningRef = useRef<Set<string>>(new Set())
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
@@ -100,6 +116,103 @@ export default function OverviewPage() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [loadData])
+
+  // Start / update countdowns for pending rides
+  useEffect(() => {
+    const pendingRides = recentRides.filter(r => r.status === 'pending')
+
+    // Clear timers for rides that are no longer pending
+    Object.keys(timerRefs.current).forEach(rideId => {
+      if (!pendingRides.find(r => r.id === rideId)) {
+        clearInterval(timerRefs.current[rideId])
+        delete timerRefs.current[rideId]
+      }
+    })
+
+    // Resolve accepted/declined countdowns
+    setCountdowns(prev => {
+      const next = { ...prev }
+      Object.keys(next).forEach(rideId => {
+        const ride = recentRides.find(r => r.id === rideId)
+        if (ride?.status === 'dispatched' && next[rideId].status === 'waiting') {
+          next[rideId] = { ...next[rideId], status: 'accepted' }
+          clearInterval(timerRefs.current[rideId])
+          delete timerRefs.current[rideId]
+          setTimeout(() => setCountdowns(p => { const c = { ...p }; delete c[rideId]; return c }), 4000)
+        }
+      })
+      return next
+    })
+
+    // Start new timers for newly pending rides
+    pendingRides.forEach(ride => {
+      if (timerRefs.current[ride.id]) return // already running
+      const amb = ambulances.find(a => a.id === ride.ambulance_id)
+      const attemptNumber = (ride as Ride & { attempted_ambulance_ids?: string[] }).attempted_ambulance_ids?.length ?? 1
+
+      setCountdowns(prev => ({
+        ...prev,
+        [ride.id]: {
+          secondsLeft: REASSIGN_TIMEOUT_S,
+          attemptNumber,
+          ambulanceCode: amb?.code ?? '—',
+          driverName: ride.driver_name ?? '—',
+          status: 'waiting',
+        },
+      }))
+
+      timerRefs.current[ride.id] = setInterval(() => {
+        setCountdowns(prev => {
+          const cur = prev[ride.id]
+          if (!cur || cur.status !== 'waiting') return prev
+          const next = cur.secondsLeft - 1
+          if (next > 0) return { ...prev, [ride.id]: { ...cur, secondsLeft: next } }
+
+          // Timer expired — trigger reassignment
+          clearInterval(timerRefs.current[ride.id])
+          delete timerRefs.current[ride.id]
+
+          if (!reassigningRef.current.has(ride.id)) {
+            reassigningRef.current.add(ride.id)
+            fetch('/api/reassign-ride', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rideId: ride.id, excludeAmbulanceIds: [] }),
+            })
+              .then(r => r.json())
+              .then(data => {
+                reassigningRef.current.delete(ride.id)
+                if (data.exhausted) {
+                  setCountdowns(p => ({
+                    ...p,
+                    [ride.id]: { ...p[ride.id], status: 'exhausted', secondsLeft: 0 },
+                  }))
+                } else {
+                  setCountdowns(p => ({
+                    ...p,
+                    [ride.id]: {
+                      secondsLeft: REASSIGN_TIMEOUT_S,
+                      attemptNumber: data.attemptNumber,
+                      ambulanceCode: data.ambulance?.code ?? '—',
+                      driverName: data.ambulance?.driver_name ?? '—',
+                      status: 'waiting',
+                    },
+                  }))
+                }
+              })
+              .catch(() => { reassigningRef.current.delete(ride.id) })
+          }
+          return { ...prev, [ride.id]: { ...cur, secondsLeft: 0 } }
+        })
+      }, 1000)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentRides, ambulances])
+
+  // Cleanup timers on unmount
+  useEffect(() => () => {
+    Object.values(timerRefs.current).forEach(clearInterval)
+  }, [])
 
   const updateStatus = async (ride: Ride, newStatus: string) => {
     setUpdating(ride.id)
@@ -192,6 +305,61 @@ export default function OverviewPage() {
             >
               <X className="w-4 h-4" />
             </button>
+          </div>
+        )
+      })}
+
+      {/* Driver Response Countdown Cards */}
+      {Object.entries(countdowns).map(([rideId, cd]) => {
+        const ride = recentRides.find(r => r.id === rideId)
+        const pct = (cd.secondsLeft / REASSIGN_TIMEOUT_S) * 100
+        if (cd.status === 'accepted') return (
+          <div key={rideId} className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <p className="text-sm font-semibold text-emerald-800">
+              {cd.driverName} accepted · {ride?.patient_name ?? 'Ride'} is on the way
+            </p>
+          </div>
+        )
+        if (cd.status === 'exhausted') return (
+          <div key={rideId} className="flex items-start gap-3 bg-red-50 border-2 border-ambu-red rounded-xl px-4 py-3">
+            <AlertTriangle className="w-5 h-5 text-ambu-red shrink-0 mt-0.5 animate-pulse" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-red-900">No drivers responding — please call ops</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                {ride?.patient_name} · All {MAX_ATTEMPTS} drivers tried ·{' '}
+                <a href={`tel:${OPS_PHONE}`} className="underline font-semibold">{OPS_PHONE}</a>
+              </p>
+            </div>
+            <button onClick={() => setCountdowns(p => { const c = { ...p }; delete c[rideId]; return c })}
+              className="text-red-400 hover:text-red-600 shrink-0">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )
+        return (
+          <div key={rideId} className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Timer className="w-4 h-4 text-amber-600 shrink-0" />
+                <p className="text-sm font-semibold text-amber-900">
+                  Awaiting Driver Response · Attempt {cd.attemptNumber}/{MAX_ATTEMPTS}
+                </p>
+              </div>
+              <span className={`text-sm font-black tabular-nums ${cd.secondsLeft <= 10 ? 'text-ambu-red animate-pulse' : 'text-amber-700'}`}>
+                {cd.secondsLeft}s
+              </span>
+            </div>
+            <p className="text-xs text-amber-700">
+              {cd.ambulanceCode} · {cd.driverName}
+              {ride && <span> · {ride.patient_name}</span>}
+            </p>
+            <div className="h-1.5 bg-amber-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
           </div>
         )
       })}
