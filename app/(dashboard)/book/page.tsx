@@ -55,6 +55,7 @@ export default function BookAmbulancePage() {
   const { isLoaded: mapsLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: ['places'] as ['places'],
   })
   const pickupRef = useRef<HTMLInputElement>(null)
   const destRef = useRef<HTMLInputElement>(null)
@@ -75,6 +76,8 @@ export default function BookAmbulancePage() {
     urgency: 'Urgent' as Urgency, ambulance_id: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number; place_id: string } | null>(null)
+  const [destCoords, setDestCoords] = useState<{ lat: number; lng: number; place_id: string } | null>(null)
 
   const urgencyConfig = URGENCY_OPTIONS.find(u => u.key === form.urgency)!
 
@@ -109,10 +112,10 @@ export default function BookAmbulancePage() {
 
   // Attach Google Places Autocomplete to pickup + destination inputs
   useEffect(() => {
-    if (!mapsLoaded) return
+    if (!mapsLoaded || !window.google?.maps?.places) return
     const opts: google.maps.places.AutocompleteOptions = {
       componentRestrictions: { country: 'in' },
-      fields: ['formatted_address'],
+      fields: ['formatted_address', 'geometry', 'place_id'],
     }
     if (pickupRef.current) {
       const ac = new window.google.maps.places.Autocomplete(pickupRef.current, opts)
@@ -121,6 +124,13 @@ export default function BookAmbulancePage() {
         if (place.formatted_address) {
           setForm(prev => ({ ...prev, pickup_location: place.formatted_address! }))
           setErrors(prev => { const n = { ...prev }; delete n.pickup_location; return n })
+          if (place.geometry?.location && place.place_id) {
+            setPickupCoords({
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+              place_id: place.place_id,
+            })
+          }
         }
       })
     }
@@ -131,6 +141,13 @@ export default function BookAmbulancePage() {
         if (place.formatted_address) {
           setForm(prev => ({ ...prev, destination: place.formatted_address! }))
           setErrors(prev => { const n = { ...prev }; delete n.destination; return n })
+          if (place.geometry?.location && place.place_id) {
+            setDestCoords({
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+              place_id: place.place_id,
+            })
+          }
         }
       })
     }
@@ -139,6 +156,8 @@ export default function BookAmbulancePage() {
   const f = (field: keyof typeof form, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }))
     if (errors[field]) setErrors(prev => { const n = { ...prev }; delete n[field]; return n })
+    if (field === 'pickup_location') setPickupCoords(null)
+    if (field === 'destination') setDestCoords(null)
   }
 
   const validate = () => {
@@ -179,7 +198,13 @@ export default function BookAmbulancePage() {
       patient_gender: form.patient_gender,
       chief_complaint: form.chief_complaint,
       pickup_location: form.pickup_location,
+      pickup_lat: pickupCoords?.lat ?? null,
+      pickup_lng: pickupCoords?.lng ?? null,
+      pickup_place_id: pickupCoords?.place_id ?? null,
       destination: form.destination,
+      destination_lat: destCoords?.lat ?? null,
+      destination_lng: destCoords?.lng ?? null,
+      destination_place_id: destCoords?.place_id ?? null,
       urgency: form.urgency,
       ambulance_id: form.ambulance_id,
       driver_name: selectedAmb?.driver_name || '',
@@ -240,6 +265,8 @@ export default function BookAmbulancePage() {
         trackingToken, patientPhone: form.patient_phone, whatsappSent,
       })
       setForm({ patient_name: '', patient_phone: '', patient_age: '', patient_gender: '', pickup_location: '', destination: '', chief_complaint: '', urgency: 'Urgent', ambulance_id: '' })
+      setPickupCoords(null)
+      setDestCoords(null)
       await loadAmbs(supabase)
       toast.success('Ambulance dispatched successfully!')
     }

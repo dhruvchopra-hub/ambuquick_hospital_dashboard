@@ -48,6 +48,12 @@ export interface Ride {
   amount: number
   tracking_token?: string
   whatsapp_sent?: boolean
+  pickup_lat?: number | null
+  pickup_lng?: number | null
+  pickup_place_id?: string | null
+  destination_lat?: number | null
+  destination_lng?: number | null
+  destination_place_id?: string | null
   created_at: string
 }
 
