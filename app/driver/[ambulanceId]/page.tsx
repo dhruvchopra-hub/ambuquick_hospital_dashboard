@@ -295,7 +295,7 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
   const urgColors = activeRide ? (URGENCY_COLOR[activeRide.urgency] ?? URGENCY_COLOR.Urgent) : null
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6 gap-5">
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-start py-8 px-4 gap-5">
       {/* Install banner */}
       {showInstall && (
         <div className="w-full max-w-sm bg-gray-800 border border-gray-700 rounded-xl p-3 flex items-center justify-between gap-3">
@@ -355,20 +355,37 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
             <div className="flex justify-between text-sm"><span className="text-gray-500">Patient</span><span className="font-medium">{activeRide.patient_name}</span></div>
             <div className="flex justify-between text-sm"><span className="text-gray-500">Phone</span><a href={`tel:${activeRide.patient_phone}`} className="text-blue-400">{activeRide.patient_phone}</a></div>
 
-            <div className="border-t border-gray-800 pt-3 space-y-2">
-              <div className="flex items-start gap-2 text-sm">
-                <span className="shrink-0 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mt-0.5">
-                  <span className="w-1.5 h-1.5 bg-white rounded-full" />
-                </span>
-                <span className="text-gray-200">{activeRide.pickup_location}</span>
+            <div className="border-t border-gray-800 pt-3 space-y-3">
+              {/* Pickup */}
+              <div className="flex items-start gap-3">
+                <div className="flex flex-col items-center mt-1 shrink-0">
+                  <span className="w-3 h-3 rounded-full bg-green-500 block" />
+                  <span className="w-px flex-1 min-h-[20px] bg-gray-600 block my-0.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Pickup</p>
+                  <p className="text-sm text-gray-100 mt-0.5 leading-snug">{activeRide.pickup_location}</p>
+                </div>
               </div>
-              <div className="ml-2.5 w-px h-4 bg-gray-700 ml-[9px]" />
-              <div className="flex items-start gap-2 text-sm">
-                <span className="shrink-0 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center mt-0.5">
-                  <span className="w-1.5 h-1.5 bg-white rounded-full" />
-                </span>
-                <span className="text-gray-200">{activeRide.destination}</span>
+              {/* Destination */}
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 mt-1">
+                  <span className="w-3 h-3 rounded-sm bg-red-500 block" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Destination</p>
+                  <p className="text-sm text-gray-100 mt-0.5 leading-snug">{activeRide.destination}</p>
+                </div>
               </div>
+              {/* Navigate button */}
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(activeRide.pickup_location)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition active:scale-95"
+              >
+                <Navigation className="w-4 h-4" /> Navigate to Pickup
+              </a>
             </div>
 
             {activeRide.status === 'pending' && (
