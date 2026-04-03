@@ -114,7 +114,12 @@ export default function OverviewPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ambulances' }, loadData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, loadData)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    // Polling fallback — fires even if Supabase Realtime is not enabled for the tables
+    const poll = setInterval(loadData, 10000)
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(poll)
+    }
   }, [loadData])
 
   // Start / update countdowns for pending rides

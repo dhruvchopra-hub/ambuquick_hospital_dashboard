@@ -34,7 +34,6 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [showInstall, setShowInstall] = useState(false)
-  const [newRequestAlert, setNewRequestAlert] = useState(false)
   const [countdown, setCountdown] = useState(30)
   const watchIdRef = useRef<number | null>(null)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
@@ -42,6 +41,7 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevRideIdRef = useRef<string | null>(null)
+  const newRequestAlertRef = useRef(false)
   const audioCtxRef = useRef<AudioContext | null>(null)
 
   // Play an alert beep using Web Audio API (no external file needed)
@@ -89,7 +89,7 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
         // No active ride
         if (prevRideIdRef.current) {
           prevRideIdRef.current = null
-          setNewRequestAlert(false)
+          newRequestAlertRef.current = false
           if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
         }
         setActiveRide(null)
@@ -99,17 +99,17 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
       setActiveRide(ride)
       // New pending ride just arrived
       if (ride.status === 'pending' && ride.id !== prevRideIdRef.current) {
-        setNewRequestAlert(true)
+        newRequestAlertRef.current = true
         startCountdown(ride.id)
         playAlert()
       }
       // Ride accepted — stop alert
-      if (ride.status !== 'pending' && newRequestAlert) {
-        setNewRequestAlert(false)
+      if (ride.status !== 'pending' && newRequestAlertRef.current) {
+        newRequestAlertRef.current = false
         if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
       }
     } catch {}
-  }, [params.ambulanceId, newRequestAlert, playAlert, startCountdown])
+  }, [params.ambulanceId, playAlert, startCountdown])
 
   useEffect(() => {
     // Register service worker
@@ -197,7 +197,6 @@ export default function DriverTrackingPage({ params }: { params: { ambulanceId: 
           reason: response === 'decline' ? declineReason : undefined,
         }),
       })
-      setNewRequestAlert(false)
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
       if (response === 'decline') {
         setActiveRide(null)
